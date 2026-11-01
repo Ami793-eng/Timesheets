@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-26";
+const APP_VERSION = "2026.11.01-27";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -262,7 +262,7 @@ function blankDay(dateIso) {
     partFrom: "",        //   …the part actually worked
     partTo: "",
     partNote: "",        //   …what it was (e.g. Meeting)
-    partRostered: true,  //   leave was approved in advance / on the roster → Roster row shows the leave
+    partRostered: false, //   ticked → Roster row shows the leave instead of the shift times
     actualLeave: "",
     actualFrom: "",
     actualTo: "",
@@ -357,7 +357,7 @@ function excelCells(d) {
   const c = { rFrom: "", rTo: "", aFrom: "", aTo: "", otFrom: "", otTo: "", otReason: "" };
   if (roster === "rest") c.rFrom = "Rest Day";
   else if (roster === "leave") c.rFrom = d.rosterLeave;
-  else if (d.actual === "partleave" && d.partRostered !== false && d.partLeave) c.rFrom = d.partLeave;
+  else if (d.actual === "partleave" && d.partRostered === true && d.partLeave) c.rFrom = d.partLeave;
   else { c.rFrom = d.rosterFrom; c.rTo = d.rosterTo; }
 
   const a = resolvedActual(d);
@@ -379,7 +379,7 @@ function excelCells(d) {
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   if (d.actual === "partleave" && d.roster === "times" && d.partLeave && isTime(d.partFrom) && isTime(d.partTo)) {
-    const shiftTxt = d.partRostered !== false ? ` (rostered ${d.rosterFrom}–${d.rosterTo})` : "";
+    const shiftTxt = d.partRostered === true ? ` (rostered ${d.rosterFrom}–${d.rosterTo})` : "";
     const note = `${d.partLeave} ${fmtDur(partLeaveMins(d))}${shiftTxt} – ${d.partNote.trim() || "Worked"} ${d.partFrom}–${d.partTo}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
@@ -1163,8 +1163,8 @@ function dayEditor(d, i) {
       <select data-f="partLeave" data-i="${i}" class="${d.partLeave ? "" : "needs"}">${opt("", "— Select —", !d.partLeave)}${LEAVE_TYPES.filter(l => l !== "Shift Swap").map(l => opt(l, l, d.partLeave === l)).join("")}</select>
     </div>
     <label class="check check--small">
-      <input type="checkbox" data-f="partRostered" data-i="${i}" ${d.partRostered !== false ? "checked" : ""}>
-      <span>Leave was approved in advance / on my roster <small class="muted">(Roster row shows the leave instead of ${esc(d.rosterFrom)}–${esc(d.rosterTo)})</small></span>
+      <input type="checkbox" data-f="partRostered" data-i="${i}" ${d.partRostered === true ? "checked" : ""}>
+      <span>Show the leave in the Roster row <small class="muted">(instead of the shift times ${esc(d.rosterFrom)}–${esc(d.rosterTo)})</small></span>
     </label>
     <div class="grid-2">
       <div class="field"><label>Worked from <span class="opt">can be outside the shift</span></label>${timeSelect("partFrom", i, d.partFrom).replace('class="time-select"', `class="time-select ${isTime(d.partFrom) ? "" : "needs"}"`)}</div>
