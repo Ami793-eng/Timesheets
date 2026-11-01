@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-17";
+const APP_VERSION = "2026.11.01-18";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1149,7 +1149,7 @@ function dayEditor(d, i) {
         <div class="field"><label>To</label>${timeSelect("subsTo", i, d.subsTo)}</div>
         <div class="field"><label>Rate</label><select data-f="subsRate" data-i="${i}">${opt("", "— Select —", !d.subsRate)}${["5 hr", "10 hr"].map(r => opt(r, r, d.subsRate === r)).join("")}</select></div>
         <div class="field"><label>Location</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}" placeholder="e.g. Sligo UH"></div>
-        <div class="field"><label>Vehicle <span class="opt">optional</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="e.g. 7R10"></div>
+        <div class="field"><label>Callsign <span class="opt">optional</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="Vehicle callsign"></div>
       </div>` : ""}
     </fieldset>` : ""}
 
