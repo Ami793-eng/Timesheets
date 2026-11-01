@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en-IE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b5f73">
+  <title>Timesheet Hub</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <h1 class="brand">Timesheet Hub</h1>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab" role="tab" data-tab="timesheet" aria-selected="true">Timesheet</button>
+        <button class="tab" role="tab" data-tab="library" aria-selected="false">Library</button>
+        <button class="tab" role="tab" data-tab="profile" aria-selected="false">My details</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ============ TIMESHEET ============ -->
+    <section id="tab-timesheet" class="panel" role="tabpanel">
+
+      <!-- Start a new week -->
+      <div id="startView" class="card">
+        <h2>Start a timesheet</h2>
+        <p class="muted" id="profileWarning" hidden>
+          Add your name and staff number in <a href="#" data-goto="profile">My details</a> first. They're filled in on every timesheet automatically.
+        </p>
+        <div class="field">
+          <label for="weekEnding">Week ending (Sunday)</label>
+          <input type="date" id="weekEnding">
+          <small class="hint" id="weekEndingHint"></small>
+        </div>
+        <button class="btn btn--primary" id="startBtn">Start timesheet</button>
+        <div id="openDrafts"></div>
+      </div>
+
+      <!-- Editing a week -->
+      <div id="editView" hidden>
+        <div class="card sheet-head">
+          <div>
+            <div class="eyebrow" id="sheetStatus"></div>
+            <h2 id="sheetTitle"></h2>
+            <div class="muted" id="sheetStaff"></div>
+          </div>
+          <div class="saved" id="savedIndicator" aria-live="polite"></div>
+        </div>
+
+        <!-- Quick fill -->
+        <details class="card quick" id="quickFill" open>
+          <summary><h3>Quick fill</h3><span class="muted">Pick days, then a shift or leave type</span></summary>
+          <div class="field">
+            <span class="label">Days</span>
+            <div class="day-chips" id="dayChips"></div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="qStation">Station</label>
+              <select id="qStation"></select>
+            </div>
+            <div class="field">
+              <label for="qShift">Rostered</label>
+              <select id="qShift"></select>
+            </div>
+          </div>
+          <div class="grid-3" id="qOtherWrap" hidden>
+            <div class="field">
+              <label for="qOtherStart">Start</label>
+              <input type="time" id="qOtherStart">
+            </div>
+            <div class="field">
+              <label for="qOtherFinish">Finish</label>
+              <input type="time" id="qOtherFinish">
+            </div>
+            <div class="field">
+              <label for="qOtherHours">or hours</label>
+              <input type="number" id="qOtherHours" min="0.25" max="24" step="0.25" inputmode="decimal" placeholder="e.g. 12">
+            </div>
+          </div>
+          <div class="field" id="qSwapWrap" hidden>
+            <label for="qSwapNote">Shift swap note (optional)</label>
+            <input type="text" id="qSwapNote" placeholder="Swapped with / reason">
+          </div>
+          <div class="field" id="qActualWrap">
+            <span class="label">Actual</span>
+            <div class="segmented">
+              <label><input type="radio" name="qActual" value="same" checked> Worked as rostered</label>
+              <label><input type="radio" name="qActual" value="later"> I'll enter actual times per day</label>
+            </div>
+          </div>
+          <button class="btn btn--primary" id="applyBtn">Apply to selected days</button>
+        </details>
+
+        <!-- Day cards -->
+        <div id="dayList" class="day-list"></div>
+
+        <!-- Declaration + actions -->
+        <div class="card">
+          <label class="check">
+            <input type="checkbox" id="declaration">
+            <span>I confirm that the hours submitted are accurate and relate to duties undertaken during the stated period.</span>
+          </label>
+          <div class="actions">
+            <button class="btn btn--primary" id="publishBtn">Publish &amp; download Excel</button>
+            <button class="btn" id="previewBtn">Download preview</button>
+            <button class="btn btn--ghost" id="closeBtn">Close (keeps draft)</button>
+            <button class="btn btn--danger-ghost" id="discardBtn">Delete draft</button>
+          </div>
+          <p class="hint">Drafts save automatically on this device as you type. Come back later in the week and pick up where you left off.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LIBRARY ============ -->
+    <section id="tab-library" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <h2>Library</h2>
+        <div class="library-tools">
+          <input type="search" id="libSearch" placeholder="Search week ending, station, incident no…" aria-label="Search library">
+          <div class="segmented" id="libFilter">
+            <label><input type="radio" name="libFilter" value="all" checked> All</label>
+            <label><input type="radio" name="libFilter" value="draft"> Drafts</label>
+            <label><input type="radio" name="libFilter" value="published"> Published</label>
+          </div>
+        </div>
+      </div>
+      <div id="libraryList" class="library-list"></div>
+    </section>
+
+    <!-- ============ PROFILE ============ -->
+    <section id="tab-profile" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <h2>My details</h2>
+        <p class="muted">Saved on this device and added to every timesheet.</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="pName">Staff name</label>
+            <input type="text" id="pName" autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="pNumber">Staff number</label>
+            <input type="text" id="pNumber" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="pBase">Place of work / base</label>
+            <select id="pBase"></select>
+          </div>
+          <div class="field" id="pBaseOtherWrap" hidden>
+            <label for="pBaseOther">Base name</label>
+            <input type="text" id="pBaseOther">
+          </div>
+          <div class="field">
+            <label for="pEmailTo">Send timesheets to (email)</label>
+            <input type="email" id="pEmailTo" placeholder="manager or rosters email" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Signature</span>
+          <div class="sig-wrap">
+            <canvas id="sigPad" width="600" height="160" aria-label="Signature pad"></canvas>
+            <div class="sig-actions">
+              <span class="hint">Sign with your finger or mouse</span>
+              <button class="btn btn--small" id="sigClear" type="button">Clear</button>
+            </div>
+          </div>
+          <label for="pSigText" class="label label--sub">…or type your name as signature</label>
+          <input type="text" id="pSigText" placeholder="Typed signature (used if nothing is drawn)">
+        </div>
+
+        <button class="btn btn--primary" id="saveProfileBtn">Save details</button>
+      </div>
+
+      <div class="card">
+        <h3>Backup</h3>
+        <p class="muted">Drafts and the library live in this browser only. Clearing browser data or changing phone will lose them, so export a backup now and then.</p>
+        <div class="actions">
+          <button class="btn" id="exportBackupBtn">Export backup</button>
+          <button class="btn" id="importBackupBtn">Import backup</button>
+          <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
+        </div>
+        <p class="hint" id="templateStatus"></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- After publishing -->
+  <dialog id="publishedDialog">
+    <form method="dialog" class="dialog">
+      <h3>Timesheet published</h3>
+      <p id="publishedText">The Excel file has been downloaded and saved to your library.</p>
+      <div class="actions">
+        <button class="btn btn--primary" id="shareBtn" value="share">Email / share</button>
+        <button class="btn" id="redownloadBtn" value="download">Download again</button>
+        <button class="btn btn--ghost" value="close">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="lib/exceljs.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
