@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-20";
+const APP_VERSION = "2026.11.01-21";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1617,11 +1617,12 @@ function sheetExtent(ws) {
 
 async function renderWorksheetPdf(wb, ws) {
   const { jsPDF } = window.jspdf;
-  // Locked: opens without a password, can be printed, but not edited in normal PDF readers.
+  // Locked: opens without a password and can be printed and signed/annotated (e.g. a manager's
+  // signature via Fill & Sign), but the timesheet content can't be edited in normal PDF readers.
   const ownerKey = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
   const doc = new jsPDF({
     orientation: "landscape", unit: "mm", format: "a4",
-    encryption: { userPassword: "", ownerPassword: ownerKey, userPermissions: ["print"] }
+    encryption: { userPassword: "", ownerPassword: ownerKey, userPermissions: ["print", "annot-forms"] }
   });
   const { rows, cols } = sheetExtent(ws);
   const PX = 0.2646;                                         // mm per pixel at 96 dpi

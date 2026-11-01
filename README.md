@@ -48,7 +48,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - Shift Swap, which takes an optional note
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
-- **Publish = locked PDF:** publishing creates a **PDF only**. It is drawn straight from the filled-in Excel template, using the template's own colours, column widths, merged cells, borders, fonts, logo and notes. The PDF is **locked**: it opens without a password and can be printed, but normal PDF readers won't let it be edited or copied. This is a strong deterrent rather than unbreakable protection.
+- **Publish = locked PDF:** publishing creates a **PDF only**. It is drawn straight from the filled-in Excel template, using the template's own colours, column widths, merged cells, borders, fonts, logo and notes. The PDF is **locked**: it opens without a password and can be **printed and signed**, but normal PDF readers won't let the timesheet's content be edited or copied. For example, a manager can add a signature in the Line Manager box with Adobe Fill & Sign, or print it and sign by hand. This is a strong deterrent rather than unbreakable protection.
   - **Preview PDF** on a draft lets you check it first.
   - **Revise** in the Library makes a corrected version (AMENDED 1, 2, …).
   - **Excel:** the Library card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
