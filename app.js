@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-28";
+const APP_VERSION = "2026.11.01-29";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -408,7 +408,7 @@ function daySummary(d) {
     text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
   } else if (d.actual === "extended" && d.actualMins) {
     text += ` · extended to ${a.to} (+${fmtDur(d.actualMins)})`;
-  } else if (d.actual === "partleave") {
+  } else if (d.actual === "partleave") {  // leave + part shift / meeting
     text += d.partLeave && isTime(d.partFrom) && isTime(d.partTo)
       ? ` · ${d.partLeave} ${fmtDur(partLeaveMins(d))}, worked ${d.partFrom}–${d.partTo}${d.partNote.trim() ? ` (${d.partNote.trim()})` : ""}`
       : " · part leave – details needed";
@@ -1101,9 +1101,8 @@ function dayEditor(d, i) {
     isTimes ? opt("late", "Comp rest / late start", d.actual === "late") : "",
     d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
     opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
-    isTimes ? opt("partleave", "Part leave / part worked", d.actual === "partleave") : "",
     opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none"),
-    `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}</optgroup>`
+    `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}${isTimes ? opt("partleave", "Leave + part shift / meeting", d.actual === "partleave") : ""}</optgroup>`
   ].join("");
 
   return `
@@ -1183,7 +1182,7 @@ function dayEditor(d, i) {
     </div>
     <div class="field">
       <label>What you worked <span class="opt">optional</span></label>
-      <input type="text" data-f="partNote" data-i="${i}" value="${esc(d.partNote)}" placeholder="e.g. Meeting">
+      <input type="text" data-f="partNote" data-i="${i}" value="${esc(d.partNote)}" list="partNoteList" placeholder="Meeting, part shift…">
     </div>
     ${isTime(d.partFrom) && isTime(d.partTo) ? `
     <div class="calc">
