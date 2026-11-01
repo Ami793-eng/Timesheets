@@ -154,23 +154,6 @@
           </div>
         </div>
 
-        <fieldset class="sub recipients">
-          <legend>Email recipients</legend>
-          <p class="hint">Tick the ones your timesheet should go to by default. You can change the ticks each time you send.</p>
-          <div class="recip-row">
-            <label class="recip-tick"><input type="checkbox" id="pOrmDefault"> <span>ORM</span></label>
-            <input type="email" id="pOrmEmail" placeholder="ORM / manager email" autocomplete="off" aria-label="ORM email">
-          </div>
-          <div class="recip-row">
-            <label class="recip-tick"><input type="checkbox" id="pSupDefault"> <span>Supervisor</span></label>
-            <input type="email" id="pSupEmail" placeholder="Supervisor email" autocomplete="off" aria-label="Supervisor email">
-          </div>
-          <div class="recip-row">
-            <label class="recip-tick"><input type="checkbox" id="pMeDefault"> <span>Me <small>(CC)</small></span></label>
-            <input type="email" id="pMeEmail" placeholder="Your own email" autocomplete="email" aria-label="My email">
-          </div>
-        </fieldset>
-
         <div class="field">
           <span class="label">Signature</span>
           <div class="segmented sig-modes" id="sigModes">
@@ -208,6 +191,32 @@
           <small class="hint">This preview is what goes into the Employee Signature box on the Excel sheet.</small>
         </div>
 
+        <fieldset class="sub recipients">
+          <legend>Email recipients</legend>
+          <p class="hint">Tick who your timesheet goes to by default. You can change the ticks each time you send. Names are used in the greeting ("Hello …").</p>
+
+          <div class="recip">
+            <label class="recip-tick"><input type="checkbox" id="pOrmDefault"> <span>ORM</span></label>
+            <div class="grid-2">
+              <div class="field"><label for="pOrmName">Name</label><input type="text" id="pOrmName" placeholder="e.g. John" autocomplete="off"></div>
+              <div class="field"><label for="pOrmEmail">Email</label><input type="email" id="pOrmEmail" placeholder="ORM email" autocomplete="off"></div>
+            </div>
+          </div>
+
+          <div class="recip">
+            <label class="recip-tick"><input type="checkbox" id="pSupDefault"> <span>Supervisor</span></label>
+            <div class="grid-2">
+              <div class="field"><label for="pSupName">Name</label><input type="text" id="pSupName" placeholder="e.g. Mary" autocomplete="off"></div>
+              <div class="field"><label for="pSupEmail">Email</label><input type="email" id="pSupEmail" placeholder="Supervisor email" autocomplete="off"></div>
+            </div>
+          </div>
+
+          <div class="recip">
+            <label class="recip-tick"><input type="checkbox" id="pMeDefault"> <span>Me <small>CC</small></span></label>
+            <div class="field"><label for="pMeEmail">My email</label><input type="email" id="pMeEmail" placeholder="Your own email" autocomplete="email"></div>
+          </div>
+        </fieldset>
+
         <button class="btn btn--primary" id="saveProfileBtn">Save details</button>
       </div>
 
@@ -243,6 +252,7 @@
       <h3>Email timesheet</h3>
       <p class="muted" id="sendWhat"></p>
       <div class="send-boxes" id="sendBoxes"></div>
+      <div class="email-preview" id="sendPreview" aria-live="polite"></div>
       <p class="hint" id="sendHow"></p>
       <div class="actions">
         <button class="btn btn--primary" id="sendEmailBtn" value="mail">Open email</button>

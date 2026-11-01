@@ -266,7 +266,6 @@ dialog::backdrop { background: rgba(10, 20, 30, .45); }
 
 /* Email recipients ---------------------------------------------------- */
 .recipients { margin-bottom: 8px; }
-.recip-row { display: grid; grid-template-columns: 9.5rem 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
 .recip-tick { display: flex; align-items: center; gap: .5rem; font-weight: 600; cursor: pointer; }
 .recip-tick input { width: 20px; height: 20px; accent-color: var(--primary); flex: none; }
 .recip-tick small, .send-box small { font-weight: 600; font-size: .7rem; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 .25rem; }
@@ -286,3 +285,11 @@ dialog::backdrop { background: rgba(10, 20, 30, .45); }
 .send-log ul { margin: .3rem 0 0; padding-left: 1.1rem; color: var(--muted); }
 .sent-line { margin-top: 4px; font-size: .88rem; color: var(--primary); font-weight: 600; }
 .sent-line--none { color: var(--muted); font-weight: 500; font-style: italic; }
+
+.recip { padding: 10px 0; border-bottom: 1px dashed var(--border); }
+.recip:last-child { border-bottom: 0; }
+.recip .recip-tick { margin-bottom: 8px; }
+.recip .field { margin-bottom: 4px; }
+.email-preview { font-size: .85rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 4px; }
+.email-preview .k { color: var(--muted); font-weight: 600; }
+.email-preview pre { margin: 8px 0 0; font: inherit; white-space: pre-wrap; }

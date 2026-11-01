@@ -80,7 +80,7 @@ const DECLARATION =
 
 let state = {
   profile: { name: "", number: "", base: "", baseOther: "",
-    ormEmail: "", supEmail: "", meEmail: "", ormDefault: true, supDefault: false, meDefault: true,
+    ormName: "", supName: "", ormEmail: "", supEmail: "", meEmail: "", ormDefault: true, supDefault: false, meDefault: true,
     signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
   currentId: null,
   sheets: []
@@ -413,6 +413,7 @@ function renderProfile() {
   $("pBaseOtherWrap").hidden = p.base !== "Other";
   RECIPIENTS.forEach(r => {
     $(r.emailId).value = p[r.emailKey] || "";
+    if (r.nameId) $(r.nameId).value = p[r.nameKey] || "";
     $(r.defaultId).checked = !!p[r.defaultKey];
   });
   $("pSigText").value = p.signatureText;
@@ -432,6 +433,7 @@ function saveProfile() {
   const bad = [];
   RECIPIENTS.forEach(r => {
     p[r.emailKey] = $(r.emailId).value.trim();
+    if (r.nameId) p[r.nameKey] = $(r.nameId).value.trim();
     p[r.defaultKey] = $(r.defaultId).checked;
     if (p[r.emailKey] && !isEmail(p[r.emailKey])) bad.push(r.label);
   });
@@ -632,7 +634,7 @@ function renderTimesheet() {
 
   const p = state.profile;
   $("sheetTitle").textContent = `Week ending ${displayDate(sheet.weekEnding)}`;
-  $("sheetStatus").textContent = sheet.version > 1 ? `Draft · revision v${sheet.version}` : "Draft";
+  $("sheetStatus").textContent = amendLabel(sheet) ? `Draft · ${amendLabel(sheet)}` : "Draft";
   $("sheetStaff").textContent = [p.name || "No name set", p.number ? `#${p.number}` : "", profileBase()].filter(Boolean).join(" · ");
   $("savedIndicator").textContent = `Saved ${new Date(sheet.updatedAt).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}`;
   renderQuickFill(sheet);
@@ -649,7 +651,7 @@ function renderStart() {
   $("openDrafts").innerHTML = drafts.length ? `
     <h3 class="sub-h">Continue a draft</h3>
     <ul class="plain-list">${drafts.map(s => `
-      <li><button class="link-btn" data-open="${esc(s.id)}">Week ending ${esc(displayDate(s.weekEnding))}${s.version > 1 ? ` (v${s.version})` : ""}</button>
+      <li><button class="link-btn" data-open="${esc(s.id)}">Week ending ${esc(displayDate(s.weekEnding))}${amendLabel(s) ? ` (${amendLabel(s)})` : ""}</button>
       <span class="muted">· ${filledCount(s)}/7 days entered</span></li>`).join("")}
     </ul>` : "";
 }
@@ -1060,7 +1062,7 @@ async function publish() {
     downloadFile(file);
     sheet.status = "published";
     sheet.publishedAt = new Date().toISOString();
-    touch(sheet, `Published v${sheet.version}`);
+    touch(sheet, amendLabel(sheet) ? `Published (${amendLabel(sheet)})` : "Published");
     state.currentId = null;
     ui.lastPublishedId = sheet.id;
     $("declaration").checked = false;
@@ -1211,7 +1213,7 @@ function fileName(sheet, suffix = "") {
   const s = sheet.staff || state.profile;
   const name = String(s.name || "Staff").replace(/[^a-zA-Z0-9]+/g, "");
   const num = String(s.number || "NoNumber").replace(/[^a-zA-Z0-9]+/g, "");
-  const v = sheet.version > 1 ? `_v${sheet.version}` : "";
+  const v = amendNo(sheet) ? `_AMENDED${amendNo(sheet)}` : "";
   return `Timesheet_${num}_${name}_WE_${sheet.weekEnding}${v}${suffix}.xlsx`;
 }
 
@@ -1229,21 +1231,51 @@ function downloadFile(file) {
 /* Email -------------------------------------------------------------- */
 
 const RECIPIENTS = [
-  { key: "orm", label: "ORM",        kind: "to", emailKey: "ormEmail", defaultKey: "ormDefault", emailId: "pOrmEmail", defaultId: "pOrmDefault" },
-  { key: "sup", label: "Supervisor", kind: "to", emailKey: "supEmail", defaultKey: "supDefault", emailId: "pSupEmail", defaultId: "pSupDefault" },
+  { key: "orm", label: "ORM",        kind: "to", nameKey: "ormName", nameId: "pOrmName", emailKey: "ormEmail", defaultKey: "ormDefault", emailId: "pOrmEmail", defaultId: "pOrmDefault" },
+  { key: "sup", label: "Supervisor", kind: "to", nameKey: "supName", nameId: "pSupName", emailKey: "supEmail", defaultKey: "supDefault", emailId: "pSupEmail", defaultId: "pSupDefault" },
   { key: "me",  label: "Me",         kind: "cc", emailKey: "meEmail",  defaultKey: "meDefault",  emailId: "pMeEmail",  defaultId: "pMeDefault" }
 ];
 
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 function fmtWhen(iso) { return new Date(iso).toLocaleString("en-IE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
 
-function emailText(sheet) {
+// Amendment number: the original is 0, each revision after that is AMENDED 1, 2, 3…
+function amendNo(sheet) { return Math.max(0, (sheet.version || 1) - 1); }
+function amendLabel(sheet) { return amendNo(sheet) ? `AMENDED ${amendNo(sheet)}` : ""; }
+
+function joinNames(names) {
+  return names.length <= 1 ? (names[0] || "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+// Email template:
+//   Subject: <Name> Timesheet <week ending>   (+ " AMENDED n" if amended)
+//   Body:    Hello <Manager> / Please find timesheet attached / Kind Regards
+function emailText(sheet, rec = { to: [], cc: [] }) {
   const staff = sheet.staff || state.profile;
-  const we = displayDate(sheet.weekEnding);
-  return {
-    subject: `Timesheet – ${staff.name} (${staff.number}) – week ending ${we}${sheet.version > 1 ? ` (revised v${sheet.version})` : ""}`,
-    body: `Hi,\n\nPlease find attached my timesheet for the week ending ${we}${sheet.version > 1 ? ` (revised version ${sheet.version} — please use this one)` : ""}.\n\nThanks,\n${staff.name}`
-  };
+  const amended = amendLabel(sheet);
+  const names = rec.to.map(r => r.name).filter(Boolean);
+  const subject = `${staff.name} Timesheet ${displayDate(sheet.weekEnding)}${amended ? ` ${amended}` : ""}`;
+  const body = [
+    names.length ? `Hello ${joinNames(names)}` : "Hello",
+    "",
+    `Please find timesheet attached${amended ? ` - ${amended}` : ""}`,
+    "",
+    "Kind Regards",
+    staff.name
+  ].join("\n");
+  return { subject, body };
+}
+
+function renderSendPreview() {
+  const sheet = state.sheets.find(s => s.id === ui.sendId);
+  if (!sheet) return;
+  const rec = chosenRecipients();
+  const { subject, body } = emailText(sheet, rec);
+  const line = (k, arr) => arr.length ? `<div><span class="k">${k}</span> ${esc(arr.map(r => r.email).join(", "))}</div>` : "";
+  $("sendPreview").innerHTML = `
+    ${line("To:", rec.to)}${line("CC:", rec.cc)}
+    <div><span class="k">Subject:</span> ${esc(subject)}</div>
+    <pre>${esc(body)}</pre>`;
 }
 
 function sendLine(rec) {
@@ -1256,14 +1288,14 @@ function openSendDialog(id) {
   if (!sheet) return;
   ui.sendId = id;
   const p = state.profile;
-  $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${sheet.version > 1 ? ` · v${sheet.version}` : ""} · ${fileName(sheet)}`;
+  $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${amendLabel(sheet) ? ` · ${amendLabel(sheet)}` : ""} · ${fileName(sheet)}`;
   $("sendBoxes").innerHTML = RECIPIENTS.map(r => {
     const email = p[r.emailKey];
     const ok = email && isEmail(email);
     return `
       <label class="send-box ${ok ? "" : "send-box--off"}">
         <input type="checkbox" name="recip" value="${r.key}" ${ok && p[r.defaultKey] ? "checked" : ""} ${ok ? "" : "disabled"}>
-        <span class="send-box__label">${r.label}${r.kind === "cc" ? ` <small>CC</small>` : ""}</span>
+        <span class="send-box__label">${r.label}${r.nameKey && p[r.nameKey] ? ` · ${esc(p[r.nameKey])}` : ""}${r.kind === "cc" ? ` <small>CC</small>` : ""}</span>
         <span class="send-box__email">${ok ? esc(email) : `No email set — <a href="#" data-goto="profile" data-close-send>add in My details</a>`}</span>
       </label>`;
   }).join("");
@@ -1276,13 +1308,14 @@ function openSendDialog(id) {
   $("sendLog").innerHTML = sends.length ? `
     <div class="send-log"><strong>Previously sent</strong>
       <ul>${sends.slice().reverse().map(r => `<li>${esc(sendLine(r))}</li>`).join("")}</ul></div>` : "";
+  renderSendPreview();
   $("sendDialog").showModal();
 }
 
 function chosenRecipients() {
   const picked = [...document.querySelectorAll('#sendBoxes input[name="recip"]:checked')].map(i => i.value);
   const p = state.profile;
-  const list = RECIPIENTS.filter(r => picked.includes(r.key)).map(r => ({ role: r.key, label: r.label, email: p[r.emailKey], kind: r.kind }));
+  const list = RECIPIENTS.filter(r => picked.includes(r.key)).map(r => ({ role: r.key, label: r.label, name: r.nameKey ? p[r.nameKey] : p.name, email: p[r.emailKey], kind: r.kind }));
   return {
     to: list.filter(r => r.kind === "to").map(({ kind, ...r }) => r),
     cc: list.filter(r => r.kind === "cc").map(({ kind, ...r }) => r)
@@ -1303,7 +1336,7 @@ async function sendSheet(method) {
   if (!sheet) return;
   const rec = { ...chosenRecipients(), at: new Date().toISOString(), method };
   const file = await buildWorkbookFile(sheet);
-  const { subject, body } = emailText(sheet);
+  const { subject, body } = emailText(sheet, rec);
   const toList = rec.to.map(r => r.email);
   const ccList = rec.cc.map(r => r.email);
 
@@ -1321,7 +1354,7 @@ async function sendSheet(method) {
   }
 
   downloadFile(file);
-  const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(`${body}\n\n[Attach: ${file.name}]`)}`];
+  const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(body)}`];
   if (ccList.length) params.unshift(`cc=${ccList.map(encodeURIComponent).join(",")}`);
   recordSend(sheet, rec);
   const url = `mailto:${toList.map(encodeURIComponent).join(",")}?${params.join("&")}`;
@@ -1356,7 +1389,7 @@ function renderLibrary() {
     return `
     <article class="card lib-item ${s.status === "draft" ? "lib-item--draft" : ""}">
       <div class="lib-item__main">
-        <div class="eyebrow">${s.status === "published" ? "Published" : "Draft"}${s.version > 1 ? ` · v${s.version}` : ""}${superseded ? " · superseded" : ""}</div>
+        <div class="eyebrow">${s.status === "published" ? "Published" : "Draft"}${amendLabel(s) ? ` · ${amendLabel(s)}` : ""}${superseded ? " · superseded" : ""}</div>
         <h3>Week ending ${esc(displayDate(s.weekEnding))}</h3>
         <div class="muted">${esc(meta)}</div>
         ${s.status === "published" ? (s.sends?.length
@@ -1382,7 +1415,7 @@ function renderLibrary() {
 
 function searchText(s) {
   return [
-    displayDate(s.weekEnding), s.weekEnding, s.status, `v${s.version}`, s.sends?.length ? "sent emailed" : "not sent",
+    displayDate(s.weekEnding), s.weekEnding, s.status, amendLabel(s) ? `amended ${amendLabel(s)}` : "", s.sends?.length ? "sent emailed" : "not sent",
     ...(s.sends || []).flatMap(r => [...r.to, ...r.cc].flatMap(x => [x.label, x.email])),
     ...s.days.flatMap(d => [d.station, d.rosterLeave, d.actualLeave, d.otReason, d.subsLocation, d.swapNote])
   ].join(" ").toLowerCase();
@@ -1403,17 +1436,19 @@ function reviseSheet(id) {
   if (existing) return openSheet(existing.id);
   const copy = structuredClone(original);
   const now = new Date().toISOString();
+  const version = Math.max(...state.sheets.filter(s => s.weekEnding === original.weekEnding).map(s => s.version || 1)) + 1;
   Object.assign(copy, {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     status: "draft",
-    version: Math.max(...state.sheets.filter(s => s.weekEnding === original.weekEnding).map(s => s.version || 1)) + 1,
+    version,
     revisionOf: original.id,
     createdAt: now, updatedAt: now, publishedAt: "",
-    history: [{ action: `Revision of v${original.version} created`, at: now }]
+    sends: [],
+    history: [{ action: `${amendLabel({ version })} started from ${amendLabel(original) || "the original"}`, at: now }]
   });
   delete copy.staff;
   state.sheets.push(copy);
-  toast(`Revision v${copy.version} created — make your changes and publish again.`);
+  toast(`${amendLabel(copy)} created — make your changes, publish, then email it again.`);
   openSheet(copy.id);
 }
 
@@ -1528,6 +1563,8 @@ function bind() {
     if (v === "email") openSendDialog(id);
     if (v === "download") buildWorkbookFile(state.sheets.find(s => s.id === id)).then(downloadFile);
   });
+
+  $("sendBoxes").addEventListener("change", renderSendPreview);
 
   $("sendForm").addEventListener("submit", e => {
     const method = e.submitter?.value;
