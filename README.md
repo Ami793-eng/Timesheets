@@ -106,10 +106,10 @@ These positions match `New_Timesheet_Template_2025.xlsx`, which is included as `
 | Overtime From / To / Reason for O/T Incident No. | K / L / M, on the roster row |
 | On-Call (N–P) | Not used |
 
-How each day type is written:
+How each day type is written (words are split across the From and To boxes, first word in From, the rest in To; long words shrink to fit):
 
-- **Rest Day:** "Rest Day" in the roster From cell; the actual cells are left blank.
-- **Leave:** the full leave name goes in both the roster From and actual From cells.
+- **Rest Day:** "Rest | Day" in both the Roster row and the Actual row.
+- **Leave:** the Roster row keeps the shift times, and the Actual row shows the leave split across the boxes, for example "Annual | Leave", "Self-Certified | Sick Leave" or "Force | Majeure".
 - **Shift Swap note:** goes into the M column as "Shift Swap: …".
 
 These positions are set in `EXCEL` and `DAYS` at the top of `app.js`, so they're easy to change if the template moves.

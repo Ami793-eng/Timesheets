@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-30";
+const APP_VERSION = "2026.11.01-31";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -352,17 +352,26 @@ function partLeaveMins(d) {
 }
 
 // The exact values written to the workbook for one day.
+// Words like "Rest Day" / "Annual Leave" are split across the From and To boxes:
+// first word in From, the rest in To ("Rest" | "Day", "Self-Certified" | "Sick Leave").
+function splitLabel(label) {
+  const t = String(label || "").trim();
+  const k = t.indexOf(" ");
+  return k < 0 ? [t, ""] : [t.slice(0, k), t.slice(k + 1)];
+}
+
 function excelCells(d) {
   const roster = d.roster || "rest";
   const c = { rFrom: "", rTo: "", aFrom: "", aTo: "", otFrom: "", otTo: "", otReason: "" };
-  if (roster === "rest") c.rFrom = "Rest Day";
-  else if (roster === "leave") c.rFrom = d.rosterLeave;
-  else if (d.actual === "partleave" && d.partRostered === true && d.partLeave) c.rFrom = d.partLeave;
+  if (roster === "rest") [c.rFrom, c.rTo] = splitLabel("Rest Day");
+  else if (roster === "leave") [c.rFrom, c.rTo] = splitLabel(d.rosterLeave);
+  else if (d.actual === "partleave" && d.partRostered === true && d.partLeave) [c.rFrom, c.rTo] = splitLabel(d.partLeave);
   else { c.rFrom = d.rosterFrom; c.rTo = d.rosterTo; }
 
   const a = resolvedActual(d);
   if (a.kind === "times") { c.aFrom = a.from; c.aTo = a.to; }
-  else if (a.kind === "leave") c.aFrom = a.label;
+  else if (a.kind === "leave") [c.aFrom, c.aTo] = splitLabel(a.label);
+  else if (roster === "rest") [c.aFrom, c.aTo] = splitLabel("Rest Day");   // rest day that stayed a rest day
 
   if (d.ot) {
     c.otFrom = d.otFrom;
@@ -402,7 +411,7 @@ function daySummary(d) {
   if (!d.roster) return { text: "Not entered yet", cls: "is-empty" };
   if (d.roster === "rest" && resolvedActual(d).kind === "none") return { text: "Rest Day", cls: "is-rest" };
   const tag = d.rosterLabel === "Road" ? `Road (${d.station || "station?"}) ` : d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : "";
-  let text = d.roster === "times" ? `${tag}${d.rosterFrom}–${d.rosterTo}` : c.rFrom;
+  let text = d.roster === "times" ? `${tag}${d.rosterFrom}–${d.rosterTo}` : d.roster === "leave" ? d.rosterLeave : "Rest Day";
   const a = resolvedActual(d);
   if (d.actual === "early" && d.actualMins) {
     text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
@@ -1613,6 +1622,11 @@ function fillWorksheet(wb, ws, sheet) {
     setCell(ws, `${EXCEL.toCol}${m.rosterRow}`, c.rTo);
     setCell(ws, `${EXCEL.fromCol}${m.actualRow}`, c.aFrom);
     setCell(ws, `${EXCEL.toCol}${m.actualRow}`, c.aTo);
+    // Words such as "Self-Certified" shrink to fit the time boxes instead of wrapping mid-word.
+    for (const addr of [`${EXCEL.fromCol}${m.rosterRow}`, `${EXCEL.toCol}${m.rosterRow}`, `${EXCEL.fromCol}${m.actualRow}`, `${EXCEL.toCol}${m.actualRow}`]) {
+      const cell = ws.getCell(addr);
+      if (typeof cell.value === "string" && !isTime(cell.value)) cell.alignment = { ...(cell.alignment || {}), wrapText: false, shrinkToFit: true };
+    }
     setCell(ws, `${EXCEL.otFromCol}${m.rosterRow}`, c.otFrom);
     setCell(ws, `${EXCEL.otToCol}${m.rosterRow}`, c.otTo);
     setCell(ws, `${EXCEL.otReasonCol}${m.rosterRow}`, c.otReason);
@@ -1802,6 +1816,9 @@ async function renderWorksheetPdf(wb, ws) {
     doc.setTextColor(...(isLink ? [5, 99, 193] : xlColor(font.color, [0, 0, 0])));
     const pad = 1.2 * k;
     const w = x1 - x0 - 2 * pad;
+    if (al.shrinkToFit && !al.wrapText) {
+      while (doc.getTextWidth(text) > w && size > 4) { size -= 0.25; doc.setFontSize(size); }
+    }
     let lines = al.wrapText ? doc.splitTextToSize(text, w) : [text];
     const lh = () => size * 0.3528 * 1.15;
     while (al.wrapText && lines.length * lh() > (y1 - y0) && size > 4) { size -= 0.5; doc.setFontSize(size); lines = doc.splitTextToSize(text, w); }
