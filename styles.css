@@ -29,8 +29,8 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark mode: <html class="dark"> is set by the app (Match phone / Light / Dark). */
+:root.dark {
     --bg: #0f1418;
     --surface: #182027;
     --surface-2: #1e2830;
@@ -49,7 +49,6 @@
     --warn-soft: #3c1f1d;
     --focus: 0 0 0 3px rgba(79, 179, 200, .45);
     color-scheme: dark;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -258,7 +257,7 @@ dialog::backdrop { background: rgba(10, 20, 30, .45); }
   box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 50; font-size: .92rem;
 }
 .toast--error { background: var(--danger); color: #fff; }
-@media (prefers-color-scheme: dark) { .toast:not(.toast--error) { background: #e6edf2; color: #0f1418; } .toast--error { color: #2a0b08; } }
+.dark .toast:not(.toast--error) { background: #e6edf2; color: #0f1418; } .dark .toast--error { color: #2a0b08; }
 
 @media print {
   .app-header, .actions, .quick, .toast { display: none !important; }
@@ -395,15 +394,13 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
   --leave-soft: #f3e8fd;
   --ok: #2e7d4f;    --ok-soft: #e3f4ea;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+:root.dark {
     --day: #ffb74d;   --day-soft: #3a2a14;
     --night: #9fa8ff; --night-soft: #23284a;
     --road: #6fd3c4;  --road-soft: #133a36;
     --restc: #a9b6c2; --rest-soft: #222c34;
     --leave-soft: #33244a;
     --ok: #6fcf97;    --ok-soft: #173525;
-  }
 }
 body { background: var(--bg); }
 .container { padding-bottom: 120px; }
@@ -502,7 +499,38 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(11,95,115,.45); } 100% { box-shadow: 0 0 0 14px rgba(11,95,115,0); } }
 @media (min-width: 860px) { body.has-bar .action-bar { left: 50%; right: auto; transform: translateX(-50%); width: 828px; border-radius: 14px 14px 0 0; } }
 .wk__icon { top: -7px; right: -7px; box-shadow: 0 0 0 2px var(--surface); }
-@media (prefers-color-scheme: dark) {
-  .app-header { background: #0f2c35; color: #e6edf2; }
-  .install-btn { border-color: rgba(255,255,255,.35); }
+.dark .install-btn { border-color: rgba(255,255,255,.35); }
+
+
+/* ===================================================================== */
+/* Colour themes (My details → Appearance)                               */
+/* ===================================================================== */
+:root            { --hdr1: #0b5f73; --hdr2: #128aa3; }
+:root.dark       { --hdr1: #0f2c35; --hdr2: #134152; }
+
+:root[data-theme="green"] { --primary: #1f7a4d; --primary-soft: #e3f4ea; --focus: 0 0 0 3px rgba(31,122,77,.35); --hdr1: #1f7a4d; --hdr2: #339966; }
+:root.dark[data-theme="green"] { --primary: #5cc98f; --primary-ink: #06281a; --primary-soft: #173525; --focus: 0 0 0 3px rgba(92,201,143,.45); --hdr1: #10301f; --hdr2: #17432c; }
+
+:root[data-theme="navy"] { --primary: #1e3a8a; --primary-soft: #e6ecfb; --focus: 0 0 0 3px rgba(30,58,138,.35); --hdr1: #1e3a8a; --hdr2: #2f55c0; }
+:root.dark[data-theme="navy"] { --primary: #8fb0ff; --primary-ink: #0b1633; --primary-soft: #1c2a4d; --focus: 0 0 0 3px rgba(143,176,255,.45); --hdr1: #121d3d; --hdr2: #1a2a57; }
+
+:root[data-theme="plum"] { --primary: #6b2f8a; --primary-soft: #f3e8fb; --focus: 0 0 0 3px rgba(107,47,138,.35); --hdr1: #6b2f8a; --hdr2: #8e44b5; }
+:root.dark[data-theme="plum"] { --primary: #d1a6f5; --primary-ink: #2a0f38; --primary-soft: #33244a; --focus: 0 0 0 3px rgba(209,166,245,.45); --hdr1: #2b1638; --hdr2: #3d1f50; }
+
+:root[data-theme="slate"] { --primary: #334155; --primary-soft: #eef1f5; --focus: 0 0 0 3px rgba(51,65,85,.35); --hdr1: #1e293b; --hdr2: #334155; }
+:root.dark[data-theme="slate"] { --primary: #cbd5e1; --primary-ink: #0f172a; --primary-soft: #263241; --focus: 0 0 0 3px rgba(203,213,225,.4); --hdr1: #111827; --hdr2: #1f2937; }
+
+.app-header { background: linear-gradient(135deg, var(--hdr1), var(--hdr2)); color: #fff; }
+.dark .app-header { color: #e6edf2; }
+.tab { color: inherit; }
+.sheet-head { border-top: 4px solid var(--primary); }
+
+/* Appearance picker */
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch {
+  appearance: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px;
+  min-width: 70px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
 }
+.swatch__dot { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 3px rgba(255,255,255,.35); }
+.swatch[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }

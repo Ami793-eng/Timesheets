@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-1";
+const APP_VERSION = "2026.11.02-2";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -2528,6 +2528,56 @@ function bind() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Appearance: colour theme + light/dark                               */
+/* ------------------------------------------------------------------ */
+
+const THEMES = [
+  { id: "teal",  label: "Teal",      color: "#0b5f73" },
+  { id: "green", label: "NAS Green", color: "#1f7a4d" },
+  { id: "navy",  label: "Navy",      color: "#1e3a8a" },
+  { id: "plum",  label: "Plum",      color: "#6b2f8a" },
+  { id: "slate", label: "Slate",     color: "#334155" }
+];
+const darkQuery = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+
+function applyAppearance() {
+  const p = state.profile;
+  const mode = p.mode || "system";
+  const dark = mode === "dark" || (mode === "system" && !!darkQuery?.matches);
+  const root = document.documentElement;
+  root.classList.toggle("dark", dark);
+  if (p.theme && p.theme !== "teal") root.setAttribute("data-theme", p.theme); else root.removeAttribute("data-theme");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = getComputedStyle(root).getPropertyValue("--hdr1").trim() || "#0b5f73";
+}
+
+function renderAppearance() {
+  const p = state.profile;
+  $("themeSwatches").innerHTML = THEMES.map(t => `
+    <button type="button" class="swatch" data-theme-pick="${t.id}" aria-pressed="${(p.theme || "teal") === t.id}">
+      <span class="swatch__dot" style="background:${t.color}"></span>${t.label}
+    </button>`).join("");
+  const r = document.querySelector(`input[name="mode"][value="${p.mode || "system"}"]`);
+  if (r) r.checked = true;
+}
+
+function initAppearance() {
+  applyAppearance();
+  renderAppearance();
+  $("themeSwatches").addEventListener("click", e => {
+    const b = e.target.closest("[data-theme-pick]");
+    if (!b) return;
+    state.profile.theme = b.dataset.themePick;
+    saveState(); applyAppearance(); renderAppearance();
+  });
+  $("modePicker").addEventListener("change", e => {
+    state.profile.mode = e.target.value;
+    saveState(); applyAppearance();
+  });
+  darkQuery?.addEventListener?.("change", applyAppearance);
+}
+
+/* ------------------------------------------------------------------ */
 /* Add to Home Screen + offline                                        */
 /* ------------------------------------------------------------------ */
 
@@ -2560,6 +2610,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadState();
   initSigPad();
   initInstall();
+  initAppearance();
   renderVehicleList();
   bind();
   renderProfile();

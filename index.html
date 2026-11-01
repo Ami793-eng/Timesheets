@@ -12,7 +12,17 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.02-1">
+  <script>
+    // Apply saved colours before the page draws (no flash of the wrong theme).
+    (function () {
+      var p = {}; try { p = (JSON.parse(localStorage.getItem("timesheetHub_v1")) || {}).profile || {}; } catch (e) {}
+      var r = document.documentElement, mode = p.mode || "system";
+      var dark = mode === "dark" || (mode === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+      r.classList.toggle("dark", dark);
+      if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css?v=2026.11.02-2">
 </head>
 <body>
   <header class="app-header">
@@ -264,6 +274,22 @@
       </div>
 
       <div class="card">
+        <h3>Appearance</h3>
+        <div class="field">
+          <span class="label">Colour</span>
+          <div class="swatches" id="themeSwatches"></div>
+        </div>
+        <div class="field">
+          <span class="label">Light or dark</span>
+          <div class="segmented" id="modePicker">
+            <label><input type="radio" name="mode" value="system"> Match phone</label>
+            <label><input type="radio" name="mode" value="light"> Light</label>
+            <label><input type="radio" name="mode" value="dark"> Dark</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <h3>Backup</h3>
         <p class="muted">Drafts and the library live in this browser only. Clearing browser data or changing phone will lose them, so export a backup now and then.</p>
         <div class="actions">
@@ -272,7 +298,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.02-1</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.02-2</span></p>
       </div>
     </section>
   </main>
@@ -329,6 +355,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.02-1"></script>
+  <script src="app.js?v=2026.11.02-2"></script>
 </body>
 </html>

@@ -86,6 +86,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Android / Chrome:** installs in one tap.
   - **iPhone:** shows the steps (Safari → Share → Add to Home Screen).
   - **Offline:** it also opens with no signal, using the last version it saw online.
+- **Appearance:** set in My details. Choose a colour (Teal, NAS Green, Navy, Plum or Slate) and Light, Dark or Match phone.
 - **Backup:** export or import a backup file in My details.
 
 ## Excel cell map
