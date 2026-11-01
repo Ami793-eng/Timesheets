@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-25";
+const APP_VERSION = "2026.11.01-26";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -262,6 +262,7 @@ function blankDay(dateIso) {
     partFrom: "",        //   …the part actually worked
     partTo: "",
     partNote: "",        //   …what it was (e.g. Meeting)
+    partRostered: true,  //   leave was approved in advance / on the roster → Roster row shows the leave
     actualLeave: "",
     actualFrom: "",
     actualTo: "",
@@ -356,6 +357,7 @@ function excelCells(d) {
   const c = { rFrom: "", rTo: "", aFrom: "", aTo: "", otFrom: "", otTo: "", otReason: "" };
   if (roster === "rest") c.rFrom = "Rest Day";
   else if (roster === "leave") c.rFrom = d.rosterLeave;
+  else if (d.actual === "partleave" && d.partRostered !== false && d.partLeave) c.rFrom = d.partLeave;
   else { c.rFrom = d.rosterFrom; c.rTo = d.rosterTo; }
 
   const a = resolvedActual(d);
@@ -377,7 +379,8 @@ function excelCells(d) {
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   if (d.actual === "partleave" && d.roster === "times" && d.partLeave && isTime(d.partFrom) && isTime(d.partTo)) {
-    const note = `${d.partLeave} ${fmtDur(partLeaveMins(d))} – ${d.partNote.trim() || "Worked"} ${d.partFrom}–${d.partTo}`;
+    const shiftTxt = d.partRostered !== false ? ` (rostered ${d.rosterFrom}–${d.rosterTo})` : "";
+    const note = `${d.partLeave} ${fmtDur(partLeaveMins(d))}${shiftTxt} – ${d.partNote.trim() || "Worked"} ${d.partFrom}–${d.partTo}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   if (d.actual === "late" && d.roster === "times" && d.lateReason) {
@@ -399,7 +402,7 @@ function daySummary(d) {
   if (!d.roster) return { text: "Not entered yet", cls: "is-empty" };
   if (d.roster === "rest" && resolvedActual(d).kind === "none") return { text: "Rest Day", cls: "is-rest" };
   const tag = d.rosterLabel === "Road" ? `Road (${d.station || "station?"}) ` : d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : "";
-  let text = d.roster === "times" ? `${tag}${c.rFrom}–${c.rTo}` : c.rFrom;
+  let text = d.roster === "times" ? `${tag}${d.rosterFrom}–${d.rosterTo}` : c.rFrom;
   const a = resolvedActual(d);
   if (d.actual === "early" && d.actualMins) {
     text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
@@ -1159,8 +1162,12 @@ function dayEditor(d, i) {
       <label>Leave type <span class="req">required</span></label>
       <select data-f="partLeave" data-i="${i}" class="${d.partLeave ? "" : "needs"}">${opt("", "— Select —", !d.partLeave)}${LEAVE_TYPES.filter(l => l !== "Shift Swap").map(l => opt(l, l, d.partLeave === l)).join("")}</select>
     </div>
+    <label class="check check--small">
+      <input type="checkbox" data-f="partRostered" data-i="${i}" ${d.partRostered !== false ? "checked" : ""}>
+      <span>Leave was approved in advance / on my roster <small class="muted">(Roster row shows the leave instead of ${esc(d.rosterFrom)}–${esc(d.rosterTo)})</small></span>
+    </label>
     <div class="grid-2">
-      <div class="field"><label>Worked from</label>${timeSelect("partFrom", i, d.partFrom).replace('class="time-select"', `class="time-select ${isTime(d.partFrom) ? "" : "needs"}"`)}</div>
+      <div class="field"><label>Worked from <span class="opt">can be outside the shift</span></label>${timeSelect("partFrom", i, d.partFrom).replace('class="time-select"', `class="time-select ${isTime(d.partFrom) ? "" : "needs"}"`)}</div>
       <div class="field"><label>Worked to</label>${timeSelect("partTo", i, d.partTo).replace('class="time-select"', `class="time-select ${isTime(d.partTo) ? "" : "needs"}"`)}</div>
     </div>
     <div class="field">
@@ -1314,6 +1321,10 @@ function onDayInput(e) {
       d.subs = el.value === "yes";
       break;
     }
+    case "partRostered": {
+      d.partRostered = el.checked;
+      break;
+    }
     default:
       d[f] = el.value;
   }
@@ -1445,10 +1456,8 @@ function dayErrors(d, i) {
       if (!isTime(d.partFrom) || !isTime(d.partTo)) errors.push(`${n}: enter the time you worked (from and to).`);
       else {
         const shift = shiftMins(d.rosterFrom, d.rosterTo);
-        const startOff = minsAfter(d.rosterFrom, d.partFrom) % 1440;
         const worked = shiftMins(d.partFrom, d.partTo);
-        if (worked >= shift) errors.push(`${n}: the time worked covers the whole shift — choose "Finished as rostered" instead.`);
-        else if (startOff + worked > shift) errors.push(`${n}: the time worked should fall within the rostered ${d.rosterFrom}–${d.rosterTo}.`);
+        if (worked >= shift) errors.push(`${n}: the time worked is as long as the whole shift — choose "Finished as rostered" instead.`);
       }
     }
     if (d.roster === "times" && d.actual === "extended" && !d.actualMins) errors.push(`${n}: how long was the extended duty?`);
