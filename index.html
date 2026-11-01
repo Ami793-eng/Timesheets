@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-29">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-30">
 </head>
 <body>
   <header class="app-header">
@@ -266,7 +266,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-29</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-30</span></p>
       </div>
     </section>
   </main>
@@ -292,6 +292,7 @@
       <div class="send-boxes" id="sendBoxes"></div>
       <div class="email-preview" id="sendPreview" aria-live="polite"></div>
       <p class="hint" id="sendHow"></p>
+      <button type="button" class="btn btn--small btn--ghost" id="copyAddrBtn">Copy addresses</button>
       <div class="actions">
         <button class="btn btn--primary" id="sendShareBtn" value="share" hidden>Email with PDF attached</button>
         <button class="btn" id="sendEmailBtn" value="mail">Open email</button>
@@ -322,6 +323,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.01-29"></script>
+  <script src="app.js?v=2026.11.01-30"></script>
 </body>
 </html>

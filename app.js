@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-29";
+const APP_VERSION = "2026.11.01-30";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -2086,7 +2086,7 @@ function openSendDialog(id) {
     ui.sendFiles = files;
     [$("sendShareBtn"), $("sendEmailBtn")].forEach(b => { b.disabled = false; });
     $("sendHow").textContent = canShare
-      ? "Email with PDF attached: pick your email app and the PDF is already attached. The addresses are copied — paste them into To."
+      ? "Email with PDF attached: pick your email app — the PDF, subject and message are filled in. Phones don't let apps fill in the To box, so the addresses are copied for you: press and hold the To box and tap Paste."
       : "Your email app opens with the addresses and subject filled in. The PDF is downloaded at the same time — attach it from Downloads, then press Send.";
   }).catch(err => { $("sendHow").textContent = "The PDF couldn't be created: " + err.message; });
   const sends = sheet.sends || [];
@@ -2127,12 +2127,12 @@ function sendSheet(method) {
   const ccList = rec.cc.map(r => r.email);
 
   if (method === "share") {
-    const addresses = [...toList, ...ccList].join("; ");
+    const addresses = [...toList, ...ccList].join(", ");
     if (addresses && navigator.clipboard) navigator.clipboard.writeText(addresses).catch(() => {});
     navigator.share({ files, title: subject, text: body })
       .then(() => {
         recordSend(sheet, rec);
-        toast(addresses ? "Sent to your email app with the PDF attached. Paste the addresses into To." : "Shared with the PDF attached.");
+        toast(addresses ? "Addresses copied — in your email, press and hold To, then tap Paste." : "Shared with the PDF attached.");
       })
       .catch(err => {
         if (err.name === "AbortError") return toast("Not sent.");
@@ -2390,6 +2390,13 @@ function bind() {
   });
 
   $("sendBoxes").addEventListener("change", renderSendPreview);
+  $("copyAddrBtn").addEventListener("click", async () => {
+    const { to, cc } = chosenRecipients();
+    const list = [...to, ...cc].map(r => r.email).join(", ");
+    if (!list) return toast("Tick at least one person first.", true);
+    try { await navigator.clipboard.writeText(list); toast("Addresses copied — press and hold To in your email, then Paste."); }
+    catch { prompt("Copy these addresses:", list); }
+  });
 
   $("sendForm").addEventListener("submit", e => {
     const method = e.submitter?.value;
