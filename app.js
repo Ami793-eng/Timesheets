@@ -1229,8 +1229,11 @@ function downloadFile(file) {
 
 /* Email -------------------------------------------------------------- */
 
-const ROLE_LABEL = { orm: "ORM", sup: "Supervisor" };
-const ROLES = ["orm", "sup"];
+// Role names shown in the app, emails and logs. ("orm" is just the internal key.)
+const ROLE_LABEL = { orm: "ORM", dcm: "DCM", sup: "Supervisor" };
+const ROLE_PLURAL = { orm: "ORMs", dcm: "DCMs", sup: "supervisors" };
+const ROLE_TITLE = { orm: "", dcm: "Duty Control Manager", sup: "" };
+const ROLES = ["orm", "dcm", "sup"];
 
 function newId() { return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
 
@@ -1262,7 +1265,7 @@ function renderContacts() {
         <input type="email" data-cf="email" value="${esc(c.email)}" placeholder="Email" aria-label="${ROLE_LABEL[role]} email" class="${c.email && !isEmail(c.email) ? "needs" : ""}">
         <button type="button" class="btn btn--small btn--danger-ghost contact__del" data-cf-del aria-label="Remove">Remove</button>
       </div>`).join("")
-      : `<p class="hint contact-empty">No ${ROLE_LABEL[role] === "ORM" ? "ORMs" : "supervisors"} added yet.</p>`;
+      : `<p class="hint contact-empty">No ${ROLE_PLURAL[role]} added yet.</p>`;
   });
 }
 
@@ -1347,7 +1350,8 @@ function renderSendPreview() {
 }
 
 function sendLine(rec) {
-  const who = r => r.role === "me" ? "Me" : (r.name ? `${r.name} (${r.label})` : r.label);
+  const roleOf = r => ROLE_LABEL[r.role] || r.label;
+  const who = r => r.role === "me" ? "Me" : (r.name ? `${r.name} (${roleOf(r)})` : roleOf(r));
   const names = [...rec.to, ...rec.cc].map(who).join(", ");
   return `${names} · ${fmtWhen(rec.at)}`;
 }
@@ -1373,8 +1377,9 @@ function openSendDialog(id) {
       }).join("") : `<p class="hint">${emptyText} <a href="#" data-goto="profile" data-close-send>Add in My details</a></p>`}
     </div>`;
   $("sendBoxes").innerHTML =
-    group("ORM", opts.filter(r => r.role === "orm"), "No ORMs added yet.") +
-    group("Supervisor", opts.filter(r => r.role === "sup"), "No supervisors added yet.") +
+    ROLES.map(role => group(
+      `${ROLE_LABEL[role]}${ROLE_TITLE[role] ? ` <small class="role-title">${ROLE_TITLE[role]}</small>` : ""}`,
+      opts.filter(r => r.role === role), `No ${ROLE_PLURAL[role]} added yet.`)).join("") +
     group("Me", opts.filter(r => r.role === "me"), "");
   const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })] }));
   $("sendShareBtn").hidden = !canShare;
@@ -1630,12 +1635,13 @@ function bind() {
   $("pBase").addEventListener("change", () => { $("pBaseOtherWrap").hidden = $("pBase").value !== "Other"; });
   $("pName").addEventListener("input", () => { if (sig.mode === "type" && !$("pSigText").value.trim()) renderTypedSig(); });
   $("saveProfileBtn").addEventListener("click", saveProfile);
-  ["ormList", "supList"].forEach(id => {
+  ROLES.map(r => `${r}List`).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);
     $(id).addEventListener("click", e => { const b = e.target.closest("[data-cf-del]"); if (b) removeContact(b.closest("[data-contact]").dataset.contact); });
   });
   $("addOrmBtn").addEventListener("click", () => addContact("orm"));
+  $("addDcmBtn").addEventListener("click", () => addContact("dcm"));
   $("addSupBtn").addEventListener("click", () => addContact("sup"));
   $("exportBackupBtn").addEventListener("click", exportBackup);
   $("importBackupBtn").addEventListener("click", () => $("importBackupFile").click());

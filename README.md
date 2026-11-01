@@ -32,9 +32,9 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
 - **Email recipients:** set them up in My details, under the signature.
-  - **ORM** and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
+  - **ORM**, **DCM** (Duty Control Manager) and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
   - **Me:** your own email, sent as *CC*.
-- **Sending:** after publishing, or from the Library, everyone is listed under ORM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
+- **Sending:** after publishing, or from the Library, everyone is listed under ORM, DCM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
 - **Email template:**
   ```
   Subject: <Name> Timesheet <week ending>
@@ -53,7 +53,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - the app's labels
 
   The earlier version is marked *superseded*.
-- **Sent log:** each timesheet records **"Sent by email to ORM, Supervisor, Me · date and time"**. It's shown on the library card and in the History with the full addresses. The time is recorded when you open the email from the app; the app can't see whether you then pressed Send in your mail app.
+- **Sent log:** each timesheet records **"Sent by email to John Campbell (ORM), Joe Bloggs (DCM), Me · date and time"**. It's shown on the library card and in the History with the full addresses. The time is recorded when you open the email from the app; the app can't see whether you then pressed Send in your mail app.
 - **Library:** search and filter your timesheets (including by who they were sent to), download one again, or email it again.
 - **History:** each sheet keeps a log of what happened to it and when.
 - **Backup:** export or import a backup file in My details.
