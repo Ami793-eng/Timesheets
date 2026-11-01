@@ -31,7 +31,10 @@ Staff fill in their week (they can save it and come back during the week), publi
   - Shift Swap, which takes an optional note
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
-- **Library:** search and filter your timesheets, download one again, or email/share it. On phones this opens the share sheet with the Excel file attached. On a computer the file downloads and an email draft opens, ready to attach it.
+- **Email recipients:** set them up in My details. There are three boxes, **ORM**, **Supervisor** and **Me**, each with its own address and a default tick. ORM and Supervisor go in *To*, and Me goes in *CC*.
+- **Sending:** after publishing, or from the Library, tick the boxes you want. Your email app opens with the addresses and subject filled in, and the Excel file is downloaded to attach. On phones you can also choose *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
+- **Sent log:** each timesheet records **"Sent by email to ORM, Supervisor, Me · date and time"**. It's shown on the library card and in the History with the full addresses. The time is recorded when you open the email from the app; the app can't see whether you then pressed Send in your mail app.
+- **Library:** search and filter your timesheets (including by who they were sent to), download one again, or email it again.
 - **Revise:** creates version 2, 3, and so on of a published sheet. The older version is marked *superseded*, and each sheet keeps a history log.
 - **Backup:** export or import a backup file in My details.
 

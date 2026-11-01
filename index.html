@@ -152,11 +152,24 @@
             <label for="pBaseOther">Base name</label>
             <input type="text" id="pBaseOther">
           </div>
-          <div class="field">
-            <label for="pEmailTo">Send timesheets to (email)</label>
-            <input type="email" id="pEmailTo" placeholder="manager or rosters email" autocomplete="off">
-          </div>
         </div>
+
+        <fieldset class="sub recipients">
+          <legend>Email recipients</legend>
+          <p class="hint">Tick the ones your timesheet should go to by default. You can change the ticks each time you send.</p>
+          <div class="recip-row">
+            <label class="recip-tick"><input type="checkbox" id="pOrmDefault"> <span>ORM</span></label>
+            <input type="email" id="pOrmEmail" placeholder="ORM / manager email" autocomplete="off" aria-label="ORM email">
+          </div>
+          <div class="recip-row">
+            <label class="recip-tick"><input type="checkbox" id="pSupDefault"> <span>Supervisor</span></label>
+            <input type="email" id="pSupEmail" placeholder="Supervisor email" autocomplete="off" aria-label="Supervisor email">
+          </div>
+          <div class="recip-row">
+            <label class="recip-tick"><input type="checkbox" id="pMeDefault"> <span>Me <small>(CC)</small></span></label>
+            <input type="email" id="pMeEmail" placeholder="Your own email" autocomplete="email" aria-label="My email">
+          </div>
+        </fieldset>
 
         <div class="field">
           <span class="label">Signature</span>
@@ -217,10 +230,26 @@
       <h3>Timesheet published</h3>
       <p id="publishedText">The Excel file has been downloaded and saved to your library.</p>
       <div class="actions">
-        <button class="btn btn--primary" id="shareBtn" value="share">Email / share</button>
-        <button class="btn" id="redownloadBtn" value="download">Download again</button>
+        <button class="btn btn--primary" value="email">Email it now</button>
+        <button class="btn" value="download">Download again</button>
         <button class="btn btn--ghost" value="close">Done</button>
       </div>
+    </form>
+  </dialog>
+
+  <!-- Choose who to email -->
+  <dialog id="sendDialog">
+    <form method="dialog" class="dialog" id="sendForm">
+      <h3>Email timesheet</h3>
+      <p class="muted" id="sendWhat"></p>
+      <div class="send-boxes" id="sendBoxes"></div>
+      <p class="hint" id="sendHow"></p>
+      <div class="actions">
+        <button class="btn btn--primary" id="sendEmailBtn" value="mail">Open email</button>
+        <button class="btn" id="sendShareBtn" value="share" hidden>Share file instead</button>
+        <button class="btn btn--ghost" value="cancel" formnovalidate>Cancel</button>
+      </div>
+      <div id="sendLog"></div>
     </form>
   </dialog>
 

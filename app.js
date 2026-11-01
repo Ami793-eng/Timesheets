@@ -79,7 +79,9 @@ const DECLARATION =
 /* ------------------------------------------------------------------ */
 
 let state = {
-  profile: { name: "", number: "", base: "", baseOther: "", emailTo: "", signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
+  profile: { name: "", number: "", base: "", baseOther: "",
+    ormEmail: "", supEmail: "", meEmail: "", ormDefault: true, supDefault: false, meDefault: true,
+    signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
   currentId: null,
   sheets: []
 };
@@ -101,6 +103,9 @@ function loadState() {
         profile: { ...state.profile, ...(parsed.profile || {}) },
         sheets: Array.isArray(parsed.sheets) ? parsed.sheets : []
       };
+      // Older versions had a single "send to" address: treat it as the ORM.
+      if (parsed.profile?.emailTo && !state.profile.ormEmail) state.profile.ormEmail = parsed.profile.emailTo;
+      delete state.profile.emailTo;
     }
   } catch (err) {
     console.error(err);
@@ -406,7 +411,10 @@ function renderProfile() {
   $("pBase").innerHTML = opt("", "— Select —", !p.base) + STATIONS.map(s => opt(s, s, p.base === s)).join("");
   $("pBaseOther").value = p.baseOther;
   $("pBaseOtherWrap").hidden = p.base !== "Other";
-  $("pEmailTo").value = p.emailTo;
+  RECIPIENTS.forEach(r => {
+    $(r.emailId).value = p[r.emailKey] || "";
+    $(r.defaultId).checked = !!p[r.defaultKey];
+  });
   $("pSigText").value = p.signatureText;
   $("pSigFont").value = p.signatureFont || SIG_FONTS[0].id;
   const mode = p.signatureMode || "draw";
@@ -421,9 +429,15 @@ function saveProfile() {
   p.number = $("pNumber").value.trim();
   p.base = $("pBase").value;
   p.baseOther = $("pBaseOther").value.trim();
-  p.emailTo = $("pEmailTo").value.trim();
+  const bad = [];
+  RECIPIENTS.forEach(r => {
+    p[r.emailKey] = $(r.emailId).value.trim();
+    p[r.defaultKey] = $(r.defaultId).checked;
+    if (p[r.emailKey] && !isEmail(p[r.emailKey])) bad.push(r.label);
+  });
   storeSignature();
   saveState();
+  if (bad.length) return toast(`Check the ${bad.join(" and ")} email address — it doesn't look right.`, true);
   toast("Details saved.");
 }
 
@@ -1212,26 +1226,108 @@ function downloadFile(file) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-async function shareSheet(id) {
+/* Email -------------------------------------------------------------- */
+
+const RECIPIENTS = [
+  { key: "orm", label: "ORM",        kind: "to", emailKey: "ormEmail", defaultKey: "ormDefault", emailId: "pOrmEmail", defaultId: "pOrmDefault" },
+  { key: "sup", label: "Supervisor", kind: "to", emailKey: "supEmail", defaultKey: "supDefault", emailId: "pSupEmail", defaultId: "pSupDefault" },
+  { key: "me",  label: "Me",         kind: "cc", emailKey: "meEmail",  defaultKey: "meDefault",  emailId: "pMeEmail",  defaultId: "pMeDefault" }
+];
+
+function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+function fmtWhen(iso) { return new Date(iso).toLocaleString("en-IE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+
+function emailText(sheet) {
+  const staff = sheet.staff || state.profile;
+  const we = displayDate(sheet.weekEnding);
+  return {
+    subject: `Timesheet – ${staff.name} (${staff.number}) – week ending ${we}${sheet.version > 1 ? ` (revised v${sheet.version})` : ""}`,
+    body: `Hi,\n\nPlease find attached my timesheet for the week ending ${we}${sheet.version > 1 ? ` (revised version ${sheet.version} — please use this one)` : ""}.\n\nThanks,\n${staff.name}`
+  };
+}
+
+function sendLine(rec) {
+  const names = [...rec.to, ...rec.cc].map(r => r.label).join(", ");
+  return `${names} · ${fmtWhen(rec.at)}`;
+}
+
+function openSendDialog(id) {
   const sheet = state.sheets.find(s => s.id === id);
   if (!sheet) return;
-  const file = await buildWorkbookFile(sheet);
-  const staff = sheet.staff || state.profile;
-  const subject = `Timesheet – ${staff.name} (${staff.number}) – week ending ${displayDate(sheet.weekEnding)}${sheet.version > 1 ? ` (revised v${sheet.version})` : ""}`;
-  const body = `Hi,\n\nPlease find attached my timesheet for the week ending ${displayDate(sheet.weekEnding)}.\n\nThanks,\n${staff.name}`;
+  ui.sendId = id;
+  const p = state.profile;
+  $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${sheet.version > 1 ? ` · v${sheet.version}` : ""} · ${fileName(sheet)}`;
+  $("sendBoxes").innerHTML = RECIPIENTS.map(r => {
+    const email = p[r.emailKey];
+    const ok = email && isEmail(email);
+    return `
+      <label class="send-box ${ok ? "" : "send-box--off"}">
+        <input type="checkbox" name="recip" value="${r.key}" ${ok && p[r.defaultKey] ? "checked" : ""} ${ok ? "" : "disabled"}>
+        <span class="send-box__label">${r.label}${r.kind === "cc" ? ` <small>CC</small>` : ""}</span>
+        <span class="send-box__email">${ok ? esc(email) : `No email set — <a href="#" data-goto="profile" data-close-send>add in My details</a>`}</span>
+      </label>`;
+  }).join("");
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })] }));
+  $("sendShareBtn").hidden = !canShare;
+  $("sendHow").textContent = canShare
+    ? "Open email: your email app opens with the addresses and subject filled in, and the file is downloaded for you to attach. Share file: attaches the file directly; the ticked addresses are copied so you can paste them in."
+    : "Your email app opens with the addresses and subject filled in. The Excel file is downloaded at the same time — attach it, then press Send.";
+  const sends = sheet.sends || [];
+  $("sendLog").innerHTML = sends.length ? `
+    <div class="send-log"><strong>Previously sent</strong>
+      <ul>${sends.slice().reverse().map(r => `<li>${esc(sendLine(r))}</li>`).join("")}</ul></div>` : "";
+  $("sendDialog").showModal();
+}
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+function chosenRecipients() {
+  const picked = [...document.querySelectorAll('#sendBoxes input[name="recip"]:checked')].map(i => i.value);
+  const p = state.profile;
+  const list = RECIPIENTS.filter(r => picked.includes(r.key)).map(r => ({ role: r.key, label: r.label, email: p[r.emailKey], kind: r.kind }));
+  return {
+    to: list.filter(r => r.kind === "to").map(({ kind, ...r }) => r),
+    cc: list.filter(r => r.kind === "cc").map(({ kind, ...r }) => r)
+  };
+}
+
+function recordSend(sheet, rec) {
+  sheet.sends = sheet.sends || [];
+  sheet.sends.push(rec);
+  const fmt = arr => arr.map(r => `${r.label} (${r.email})`).join(", ");
+  touch(sheet, `Sent by email to ${fmt(rec.to) || "—"}${rec.cc.length ? `; CC ${fmt(rec.cc)}` : ""}${rec.method === "share" ? " (via share)" : ""}`);
+  saveState();
+  renderLibrary();
+}
+
+async function sendSheet(method) {
+  const sheet = state.sheets.find(s => s.id === ui.sendId);
+  if (!sheet) return;
+  const rec = { ...chosenRecipients(), at: new Date().toISOString(), method };
+  const file = await buildWorkbookFile(sheet);
+  const { subject, body } = emailText(sheet);
+  const toList = rec.to.map(r => r.email);
+  const ccList = rec.cc.map(r => r.email);
+
+  if (method === "share") {
+    const addresses = [...toList, ...ccList].join("; ");
+    try { if (addresses) await navigator.clipboard.writeText(addresses); } catch { /* clipboard not available */ }
     try {
       await navigator.share({ files: [file], title: subject, text: body });
-      return;
     } catch (err) {
-      if (err.name === "AbortError") return;
+      if (err.name === "AbortError") return toast("Not sent.");
+      throw err;
     }
+    recordSend(sheet, rec);
+    return toast(addresses ? "Shared. Addresses were copied — paste them into the To box." : "Shared.");
   }
-  // Fallback: download the file and open an email draft to attach it to.
+
   downloadFile(file);
-  const to = encodeURIComponent(state.profile.emailTo || "");
-  window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + "\n\n(Attach the downloaded file: " + file.name + ")")}`;
+  const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(`${body}\n\n[Attach: ${file.name}]`)}`];
+  if (ccList.length) params.unshift(`cc=${ccList.map(encodeURIComponent).join(",")}`);
+  recordSend(sheet, rec);
+  const url = `mailto:${toList.map(encodeURIComponent).join(",")}?${params.join("&")}`;
+  console.info("Opening email:", url);
+  setTimeout(() => { window.location.href = url; }, 300);
+  toast(`Email opened · logged ${fmtWhen(rec.at)}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1263,13 +1359,16 @@ function renderLibrary() {
         <div class="eyebrow">${s.status === "published" ? "Published" : "Draft"}${s.version > 1 ? ` · v${s.version}` : ""}${superseded ? " · superseded" : ""}</div>
         <h3>Week ending ${esc(displayDate(s.weekEnding))}</h3>
         <div class="muted">${esc(meta)}</div>
+        ${s.status === "published" ? (s.sends?.length
+          ? `<div class="sent-line">✉ Sent by email to ${esc(sendLine(s.sends.at(-1)))}${s.sends.length > 1 ? ` <span class="muted">(${s.sends.length} sends)</span>` : ""}</div>`
+          : `<div class="sent-line sent-line--none">Not emailed yet</div>`) : ""}
         <div class="day__flags">${ot ? `<span class="tag tag--ot">${ot} OT day${ot > 1 ? "s" : ""}</span>` : ""}${subs ? `<span class="tag tag--subs">${subs} subsistence</span>` : ""}</div>
       </div>
       <div class="lib-item__actions">
         ${s.status === "draft" ? `
           <button class="btn btn--primary btn--small" data-open="${esc(s.id)}">Continue</button>
           <button class="btn btn--danger-ghost btn--small" data-delete="${esc(s.id)}">Delete</button>` : `
-          <button class="btn btn--primary btn--small" data-share="${esc(s.id)}">Email / share</button>
+          <button class="btn btn--primary btn--small" data-share="${esc(s.id)}">Email</button>
           <button class="btn btn--small" data-download="${esc(s.id)}">Download</button>
           <button class="btn btn--small" data-revise="${esc(s.id)}">Revise</button>
           <button class="btn btn--danger-ghost btn--small" data-delete="${esc(s.id)}">Delete</button>`}
@@ -1283,7 +1382,8 @@ function renderLibrary() {
 
 function searchText(s) {
   return [
-    displayDate(s.weekEnding), s.weekEnding, s.status, `v${s.version}`,
+    displayDate(s.weekEnding), s.weekEnding, s.status, `v${s.version}`, s.sends?.length ? "sent emailed" : "not sent",
+    ...(s.sends || []).flatMap(r => [...r.to, ...r.cc].flatMap(x => [x.label, x.email])),
     ...s.days.flatMap(d => [d.station, d.rosterLeave, d.actualLeave, d.otReason, d.subsLocation, d.swapNote])
   ].join(" ").toLowerCase();
 }
@@ -1371,9 +1471,9 @@ function bind() {
     const t = e.target.closest("[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
     if (!t) return;
     const ds = t.dataset;
-    if (ds.goto) { e.preventDefault(); showTab(ds.goto); }
+    if (ds.goto) { e.preventDefault(); if (ds.closeSend !== undefined) $("sendDialog").close("cancel"); showTab(ds.goto); }
     else if (ds.open) openSheet(ds.open);
-    else if (ds.share) shareSheet(ds.share).catch(err => alert(err.message));
+    else if (ds.share) openSendDialog(ds.share);
     else if (ds.download) {
       const s = state.sheets.find(x => x.id === ds.download);
       buildWorkbookFile(s).then(downloadFile).catch(err => alert(err.message));
@@ -1425,8 +1525,19 @@ function bind() {
   $("publishedDialog").addEventListener("close", () => {
     const v = $("publishedDialog").returnValue;
     const id = ui.lastPublishedId;
-    if (v === "share") shareSheet(id).catch(err => alert(err.message));
+    if (v === "email") openSendDialog(id);
     if (v === "download") buildWorkbookFile(state.sheets.find(s => s.id === id)).then(downloadFile);
+  });
+
+  $("sendForm").addEventListener("submit", e => {
+    const method = e.submitter?.value;
+    if (method !== "mail" && method !== "share") return; // cancel
+    const { to, cc } = chosenRecipients();
+    if (!to.length && !cc.length) {
+      e.preventDefault();
+      return toast("Tick at least one box: ORM, Supervisor or Me.", true);
+    }
+    sendSheet(method).catch(err => alert("Couldn't send: " + err.message));
   });
 
   // Keep several open tabs in sync so a stale tab never overwrites newer data.

@@ -263,3 +263,26 @@ dialog::backdrop { background: rgba(10, 20, 30, .45); }
 @media print {
   .app-header, .actions, .quick, .toast { display: none !important; }
 }
+
+/* Email recipients ---------------------------------------------------- */
+.recipients { margin-bottom: 8px; }
+.recip-row { display: grid; grid-template-columns: 9.5rem 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+.recip-tick { display: flex; align-items: center; gap: .5rem; font-weight: 600; cursor: pointer; }
+.recip-tick input { width: 20px; height: 20px; accent-color: var(--primary); flex: none; }
+.recip-tick small, .send-box small { font-weight: 600; font-size: .7rem; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 .25rem; }
+
+.send-boxes { display: grid; gap: 8px; margin: 12px 0; }
+.send-box {
+  position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-areas: "tick label" "tick email";
+  gap: 0 .75rem; align-items: center; padding: .75rem .9rem;
+  border: 2px solid var(--border); border-radius: 10px; background: var(--surface-2); cursor: pointer;
+}
+.send-box input { grid-area: tick; width: 22px; height: 22px; accent-color: var(--primary); }
+.send-box__label { grid-area: label; font-weight: 700; }
+.send-box__email { grid-area: email; font-size: .85rem; color: var(--muted); word-break: break-all; }
+.send-box:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.send-box--off { cursor: default; opacity: .75; }
+.send-log { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); font-size: .85rem; }
+.send-log ul { margin: .3rem 0 0; padding-left: 1.1rem; color: var(--muted); }
+.sent-line { margin-top: 4px; font-size: .88rem; color: var(--primary); font-weight: 600; }
+.sent-line--none { color: var(--muted); font-weight: 500; font-style: italic; }
