@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-27";
+const APP_VERSION = "2026.11.01-28";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -418,7 +418,7 @@ function daySummary(d) {
     text += ` · ${{ early: "finished early", extended: "extended", late: "comp rest / late start" }[d.actual]} – how long?`;
   } else if (d.actual !== "same") {
     if (a.kind === "times") text += ` · actual ${a.from}–${a.to}`;
-    else if (a.kind === "leave") text += ` · actual: ${a.label}`;
+    else if (a.kind === "leave") text += ` · ${a.label}`;
     else if (d.roster !== "rest") text += " · not worked";
   }
   return { text, cls: d.roster === "leave" ? "is-leave" : "" };
@@ -474,9 +474,9 @@ function rosterOptions(station, current) {
   html += `</optgroup><optgroup label="Night shifts">`;
   shiftsForStation(station).filter(s => toMin(s.start) > toMin(s.finish))
     .forEach(s => { html += opt(`shift:${s.start}`, shiftLabel(s), current === `shift:${s.start}`); });
-  html += `</optgroup><optgroup label="Leave / other">`;
-  LEAVE_TYPES.forEach(l => { html += opt(`leave:${l}`, l, current === `leave:${l}`); });
   html += `</optgroup>`;
+  // Leave is recorded under Actual, not Rostered. (Older drafts may still have leave here.)
+  if (current && current.startsWith("leave:")) html += opt(current, current.slice(6), true);
   html += opt("other", "Other (enter times)", current === "other");
   return html;
 }
@@ -936,8 +936,12 @@ function renderQuickFill(sheet) {
   if (!qs.options.length) {
     qs.innerHTML = STATIONS.map(s => opt(s, s, s === (state.profile.base || "Sligo"))).join("");
   }
-  const prev = $("qShift").value;
-  $("qShift").innerHTML = rosterOptions(qs.value, prev).replace(opt("", "— Select —", prev === ""), "");
+  const prev = $("qShift").value || (sheet.days.some(d => d.roster === "times") ? "keep" : "");
+  $("qShift").innerHTML = opt("keep", "Keep rostered shift", prev === "keep") + rosterOptions(qs.value, prev).replace(opt("", "— Select —", prev === ""), "");
+  if (!$("qActual").options.length) {
+    $("qActual").innerHTML = opt("same", "Worked as rostered", true) + opt("later", "I'll enter actual times per day", false) +
+      `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, false)).join("")}</optgroup>`;
+  }
   if (prev && [...$("qShift").options].some(o => o.value === prev)) $("qShift").value = prev;
   updateQuickVisibility();
 }
@@ -945,8 +949,8 @@ function renderQuickFill(sheet) {
 function updateQuickVisibility() {
   const v = $("qShift").value;
   $("qOtherWrap").hidden = v !== "other";
-  $("qSwapWrap").hidden = v !== "leave:Shift Swap";
-  $("qActualWrap").hidden = !(v.startsWith("shift:") || v === "other");
+  $("qActualWrap").hidden = !(v.startsWith("shift:") || v === "other" || v === "keep");
+  $("qSwapWrap").hidden = $("qActualWrap").hidden || $("qActual").value !== "leave:Shift Swap";
 }
 
 function applyQuickFill() {
@@ -962,24 +966,31 @@ function applyQuickFill() {
     otherFinish = $("qOtherFinish").value || addHours(otherStart, Number($("qOtherHours").value) / 60);
     if (!isTime(otherStart) || !isTime(otherFinish)) return toast("Enter a start time and a finish time (or hours).", true);
   }
-  const actualMode = document.querySelector('input[name="qActual"]:checked').value;
+  const actualMode = $("qActual").value;
+  const skipped = [];
   for (const i of days) {
     const d = sheet.days[i];
-    d.station = station;
-    applyRosterValue(d, value, otherStart, otherFinish);
+    if (value === "keep") {
+      if (d.roster !== "times") { skipped.push(DAYS[i].short); continue; }   // nothing rostered to keep
+    } else {
+      d.station = station;
+      applyRosterValue(d, value, otherStart, otherFinish);
+    }
     if (d.roster === "times") {
       if (actualMode === "same") d.actual = "same";
+      else if (actualMode.startsWith("leave:")) { d.actual = "leave"; d.actualLeave = actualMode.slice(6); }
       else { d.actual = "times"; d.actualFrom = d.rosterFrom; d.actualTo = d.rosterTo; ui.expanded.add(i); }
     }
-    if (value === "leave:Shift Swap") d.swapNote = $("qSwapNote").value.trim();
+    if (actualMode === "leave:Shift Swap") d.swapNote = $("qSwapNote").value.trim();
     autoOvertime(d);
   }
-  const label = $("qShift").selectedOptions[0]?.textContent || value;
+  if (skipped.length) toast(`${skipped.join(", ")}: no rostered shift to keep — pick a shift for ${skipped.length > 1 ? "those days" : "that day"}.`, true);
+  const label = [$("qShift").selectedOptions[0]?.textContent || value, $("qActualWrap").hidden ? "" : $("qActual").selectedOptions[0]?.textContent].filter(Boolean).join(" / ");
   touch(sheet, `Quick fill: ${label} → ${days.map(i => DAYS[i].short).join(", ")}`);
   ui.selectedDays.clear();
   saveState();
   renderTimesheet();
-  toast(`Applied to ${days.length} day${days.length > 1 ? "s" : ""}.`);
+  if (!skipped.length) toast(`Applied to ${days.length} day${days.length > 1 ? "s" : ""}.`);
 }
 
 /* Day cards ---------------------------------------------------------- */
@@ -1091,8 +1102,8 @@ function dayEditor(d, i) {
     d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
     opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
     isTimes ? opt("partleave", "Part leave / part worked", d.actual === "partleave") : "",
-    opt("leave", "Leave / other", d.actual === "leave"),
-    opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none")
+    opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none"),
+    `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}</optgroup>`
   ].join("");
 
   return `
@@ -1188,11 +1199,6 @@ function dayEditor(d, i) {
       <div class="field"><label>Hours</label><select data-f="actualHours" data-i="${i}">${durOptions(shiftMins(d.actualFrom, d.actualTo), 24 * 60, "hrs")}</select></div>
     </div>` : ""}
 
-    ${d.actual === "leave" && d.roster ? `
-    <div class="field">
-      <label>Actual leave type</label>
-      <select data-f="actualLeave" data-i="${i}">${opt("", "— Select —", !d.actualLeave)}${LEAVE_TYPES.map(l => opt(l, l, d.actualLeave === l)).join("")}</select>
-    </div>` : ""}
 
     ${isSwap ? `
     <div class="field">
@@ -1295,7 +1301,8 @@ function onDayInput(e) {
       break;
     }
     case "actual": {
-      d.actual = el.value;
+      if (el.value.startsWith("leave:")) { d.actual = "leave"; d.actualLeave = el.value.slice(6); }
+      else d.actual = el.value;
       if (d.actual === "times" && !d.actualFrom) { d.actualFrom = d.rosterFrom; d.actualTo = d.rosterTo; }
       if ((d.actual === "early" || d.actual === "late") && d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) d.actualMins = 0;
       break;
@@ -1444,7 +1451,7 @@ function dayErrors(d, i) {
     if (d.roster === "times" && !(isTime(d.rosterFrom) && isTime(d.rosterTo))) errors.push(`${n}: rostered start and finish times are needed.`);
     if (d.roster === "leave" && !d.rosterLeave) errors.push(`${n}: choose the leave type.`);
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
-    if (d.roster && d.actual === "leave" && !d.actualLeave) errors.push(`${n}: choose the actual leave type.`);
+    if (d.roster && d.actual === "leave" && !d.actualLeave) errors.push(`${n}: choose the leave type under Actual.`);
     if (d.roster === "times" && d.actual === "early") {
       if (!d.actualMins) errors.push(`${n}: how early did you finish?`);
       else if (d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) errors.push(`${n}: finished early by more than the whole shift.`);
@@ -2333,6 +2340,7 @@ function bind() {
   $("startBtn").addEventListener("click", startTimesheet);
   $("qStation").addEventListener("change", () => renderQuickFill(currentSheet()));
   $("qShift").addEventListener("change", updateQuickVisibility);
+  $("qActual").addEventListener("change", updateQuickVisibility);
   $("qOtherStart").innerHTML = timeOptions("");
   $("qOtherFinish").innerHTML = timeOptions("");
   $("qOtherHours").innerHTML = durOptions("", 24 * 60, "hrs");

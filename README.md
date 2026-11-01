@@ -17,13 +17,13 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Rest days** stay as one slim line, for example "Wednesday · Rest Day — confirm? [✓ Rest day] [Worked]". Confirm each as the week goes on, or tap **Worked** (or the line itself) to open it and enter times and overtime. **Done – next day** skips over rest days. Any still unconfirmed at publish are recorded as Rest Day after one prompt.
   - **Built in:** *Clinical Hub 16week*. Day 07–19, Night 19–07, Road 07–19.
   - **Road shifts** are worked from **Sligo, Manorhamilton or Ballyshannon**. Set a *usual road base* in My roster to fill it in automatically, or leave it on *Ask each time*: each Road day then asks, and can't be marked Done or published until a station is chosen. More rosters can be added to `ROSTERS` in `app.js`.
-- **Quick fill:** tap several days, pick a shift or leave type, and apply it to all of them at once.
+- **Quick fill:** tap several days, choose the rostered shift (or *Keep rostered shift*), then choose the Actual (worked as rostered, or a leave type), and apply it to all of them at once. For example, Annual Leave across three rostered nights.
   - The shift list follows the station's rules:
     - NEOC and Ballyshannon: 07:00 / 19:00
     - Carrick on Shannon and Manorhamilton: 08:00 / 20:00
     - Sligo: any listed shift
   - "Other" takes a start time plus either a finish time or a number of hours. The finish time is calculated, so 20:00 + 12 hours gives 08:00.
-- **Per-day editing:** set the rostered shift, then say how the shift ended:
+- **Per-day editing:** set the rostered shift (Rest Day, a shift, or Other times), then choose what actually happened under **Actual**. Leave goes under Actual, so the Roster row keeps the shift times, for example Roster 19:00–07:00 / Actual "Annual Leave". The options are:
   - **Finished as rostered.**
   - **Finished early:** pick how long, in 15-minute steps. The app works out the finish time and hours worked, and asks why: Certified Sick Leave, Self-Certified Sick Leave, Force Majeure – Family Emergency, or Other (with a note). The reason goes in column M on that day's row, for example "Finished early 16:15 – Certified Sick Leave".
   - **Extended duty:** pick how long. The actual finish and the overtime (rostered finish → new finish) are filled in for you. Enter the incident number, which goes on the sheet as **"Ext Duty 1234567"**.
@@ -31,7 +31,8 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Part leave / part worked:** for example you were rostered on a 19:00–07:00 night, took leave, but worked a 1-hour meeting. Choose the leave type and the time you worked; it can be outside the shift hours (e.g. a 10:00–11:00 meeting). An optional note such as "Meeting" can be added. The app works out the leave: 12h − 1h = **11h**.
     - **By default** the Roster row keeps the shift times (19:00–07:00), so the length of the shift is clear. The Actual row shows the hour worked (10:00–11:00), and column M reads "Annual Leave 11h – Meeting 10:00–11:00".
     - **"Show the leave in the Roster row"** (tick box): the Roster row shows **Annual Leave** instead, and the note records the shift times: "Annual Leave 11h (rostered 19:00–07:00) – Meeting 10:00–11:00".
-  - **Other times**, **Leave**, or **Not worked**.
+  - **Leave:** Annual Leave, Parental Leave, Self-Certified or Certified Sick Leave, Force Majeure, Study Leave or Shift Swap. The leave type goes in the Actual row.
+  - **Other times** or **Not worked**.
 - **Box off a day:** tap **✓ Done – next day** at the bottom of a day.
   - The app checks the day for anything missing (incident number, reasons, vehicle and so on).
   - The day folds to one line with a green tick, and the next unfinished day opens.

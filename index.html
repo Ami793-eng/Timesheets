@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-27">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-28">
 </head>
 <body>
   <header class="app-header">
@@ -65,7 +65,7 @@
 
         <!-- Quick fill -->
         <details class="card quick" id="quickFill" open>
-          <summary><h3>Quick fill</h3><span class="muted">Pick days, then a shift or leave type</span></summary>
+          <summary><h3>Quick fill</h3><span class="muted">Pick days, then the shift and what happened</span></summary>
           <div class="field">
             <span class="label">Days</span>
             <div class="day-chips" id="dayChips"></div>
@@ -94,16 +94,13 @@
               <select id="qOtherHours"></select>
             </div>
           </div>
+          <div class="field" id="qActualWrap">
+            <label for="qActual">Actual</label>
+            <select id="qActual"></select>
+          </div>
           <div class="field" id="qSwapWrap" hidden>
             <label for="qSwapNote">Shift swap note (optional)</label>
             <input type="text" id="qSwapNote" placeholder="Swapped with / reason">
-          </div>
-          <div class="field" id="qActualWrap">
-            <span class="label">Actual</span>
-            <div class="segmented">
-              <label><input type="radio" name="qActual" value="same" checked> Worked as rostered</label>
-              <label><input type="radio" name="qActual" value="later"> I'll enter actual times per day</label>
-            </div>
           </div>
           <button class="btn btn--primary" id="applyBtn">Apply to selected days</button>
         </details>
@@ -269,7 +266,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-27</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-28</span></p>
       </div>
     </section>
   </main>
@@ -324,6 +321,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.01-27"></script>
+  <script src="app.js?v=2026.11.01-28"></script>
 </body>
 </html>
