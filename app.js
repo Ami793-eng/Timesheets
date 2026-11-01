@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-15";
+const APP_VERSION = "2026.11.01-16";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -334,6 +334,9 @@ function autoOvertime(d) {
   }
 }
 
+// "Ext Duty 1234567" → "1234567" (so the prefix is never doubled up).
+function stripExtDuty(v) { return String(v || "").trim().replace(/^ext\.?\s*duty[:\s-]*/i, ""); }
+
 // The exact values written to the workbook for one day.
 function excelCells(d) {
   const roster = d.roster || "rest";
@@ -349,7 +352,9 @@ function excelCells(d) {
   if (d.ot) {
     c.otFrom = d.otFrom;
     c.otTo = d.otTo;
-    c.otReason = d.otReason.trim();
+    c.otReason = d.actual === "extended" && d.roster === "times" && d.otReason.trim()
+      ? `Ext Duty ${stripExtDuty(d.otReason)}`
+      : d.otReason.trim();
   }
   // Early finish: the template has no separate column, so the reason goes in the
   // O/T reason column (M) on that day's row (it's otherwise empty when there's no OT).
@@ -1123,8 +1128,12 @@ function dayEditor(d, i) {
         <div class="field"><label>OT to</label>${timeSelect("otTo", i, d.otTo)}</div>
       </div>
       <div class="field">
+        ${d.actual === "extended" && isTimes ? `
+        <label>Incident number <span class="req">required</span></label>
+        <div class="prefixed"><span class="prefixed__pre">Ext Duty</span><input type="text" data-f="otReason" data-i="${i}" value="${esc(stripExtDuty(d.otReason))}" inputmode="numeric" placeholder="e.g. 1234567" class="${d.otReason.trim() ? "" : "needs"}"></div>
+        <small class="hint">Goes on the sheet as "Ext Duty ${esc(stripExtDuty(d.otReason) || "1234567")}".</small>` : `
         <label>Incident number / reason <span class="req">required</span></label>
-        <input type="text" data-f="otReason" data-i="${i}" value="${esc(d.otReason)}" placeholder="e.g. incident number, late call" class="${d.otReason.trim() ? "" : "needs"}">
+        <input type="text" data-f="otReason" data-i="${i}" value="${esc(d.otReason)}" placeholder="e.g. incident number, late call" class="${d.otReason.trim() ? "" : "needs"}">`}
       </div>` : ""}
     </fieldset>
 
@@ -1140,7 +1149,7 @@ function dayEditor(d, i) {
         <div class="field"><label>To</label>${timeSelect("subsTo", i, d.subsTo)}</div>
         <div class="field"><label>Rate</label><select data-f="subsRate" data-i="${i}">${opt("", "— Select —", !d.subsRate)}${["5 hr", "10 hr"].map(r => opt(r, r, d.subsRate === r)).join("")}</select></div>
         <div class="field"><label>Location / incident</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}"></div>
-        <div class="field"><label>Vehicle <span class="req">required</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="Call sign / reg" class="${d.subsVehicle.trim() ? "" : "needs"}"></div>
+        <div class="field"><label>Vehicle <span class="opt">optional</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="e.g. 7R10"></div>
       </div>` : ""}
     </fieldset>` : ""}
 
@@ -1166,7 +1175,7 @@ function onDayInput(e) {
   const textFields = ["otReason", "subsLocation", "subsVehicle", "swapNote", "earlyNote", "lateNote"];
   if (textFields.includes(f)) {
     d[f] = el.value;
-    if (["otReason", "earlyNote", "subsVehicle"].includes(f)) el.classList.toggle("needs", !el.value.trim());
+    if (["otReason", "earlyNote"].includes(f)) el.classList.toggle("needs", !el.value.trim());
     if (f === "subsVehicle" && e.type === "change") {
       d.subsVehicle = el.value = el.value.trim().toUpperCase();
       rememberVehicle(d.subsVehicle);
@@ -1367,7 +1376,6 @@ function dayErrors(d, i) {
       if (!isTime(d.subsTo)) errors.push(`${n}: subsistence "To" time is missing.`);
       if (!d.subsRate.trim()) errors.push(`${n}: subsistence rate is missing.`);
       if (!d.subsLocation.trim()) errors.push(`${n}: subsistence location / incident is missing.`);
-      if (!(d.subsVehicle || "").trim()) errors.push(`${n}: subsistence vehicle is missing.`);
     }
   }
   return errors;
@@ -1498,7 +1506,7 @@ function fillWorksheet(wb, ws, sheet) {
     setCell(ws, `${EXCEL.otFromCol}${m.rosterRow}`, c.otFrom);
     setCell(ws, `${EXCEL.otToCol}${m.rosterRow}`, c.otTo);
     setCell(ws, `${EXCEL.otReasonCol}${m.rosterRow}`, c.otReason);
-    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim() ? `Vehicle ${(d.subsVehicle || "").trim()}` : ""].filter(Boolean).join(" – ");
+    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim()].filter(Boolean).join(" – ");
     const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate.trim(), where] : ["", "", "", ""];
     subs.forEach((v, k) => setCell(ws, `${EXCEL.subsCols[k]}${m.rosterRow}`, v));
   });

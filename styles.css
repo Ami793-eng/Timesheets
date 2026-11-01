@@ -366,3 +366,7 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
 .send-files { display: flex; align-items: center; gap: 14px; margin: 4px 0 10px; }
 .send-files label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
 .send-files input { width: 20px; height: 20px; accent-color: var(--primary); }
+.opt { font-weight: 500; font-size: .75rem; color: var(--muted); margin-left: .3rem; }
+.prefixed { display: flex; align-items: stretch; }
+.prefixed__pre { display: inline-flex; align-items: center; padding: 0 .65rem; border: 1px solid var(--border); border-right: 0; border-radius: 8px 0 0 8px; background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+.prefixed input { border-radius: 0 8px 8px 0; }
