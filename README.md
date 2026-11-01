@@ -15,7 +15,8 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **My roster:** in My details, pick a **base roster** and a **starting week** (a week-commencing Monday, and which line that week is). The app counts the 16-week rotation forwards and backwards from there, and shows this week's and next week's line as a check.
   - **New timesheets fill themselves in:** each shift shows as worked as rostered (Day / Night / Road), and rest days are ticked off and folded into a single "Rest days: …" line.
   - **Rest days stay out of the way** unless you tap **Worked a rest day / swap?** to add overtime or a swap.
-  - **Built in:** *Clinical Hub 16week*. Day 07–19, Night 19–07, Road 07–19. More rosters can be added to `ROSTERS` in `app.js`.
+  - **Built in:** *Clinical Hub 16week*. Day 07–19, Night 19–07, Road 07–19.
+  - **Road shifts** are worked from **Sligo, Manorhamilton or Ballyshannon**. Set a *usual road base* in My roster to fill it in automatically, or leave it on *Ask each time*: each Road day then asks, and can't be marked Done or published until a station is chosen. More rosters can be added to `ROSTERS` in `app.js`.
 - **Quick fill:** tap several days, pick a shift or leave type, and apply it to all of them at once.
   - The shift list follows the station's rules:
     - NEOC and Ballyshannon: 07:00 / 19:00

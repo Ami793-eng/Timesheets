@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-12">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-13">
 </head>
 <body>
   <header class="app-header">
@@ -223,6 +223,11 @@
                 <select id="pRosterLine"></select>
               </div>
             </div>
+            <div class="field">
+              <label for="pRoadBase">Usual road base (Road shifts)</label>
+              <select id="pRoadBase"></select>
+              <small class="hint">Road shifts are from Sligo, Manorhamilton or Ballyshannon. Choose "Ask each time" if it varies — each Road day then asks.</small>
+            </div>
             <div class="roster-preview" id="pRosterPreview"></div>
           </div>
         </fieldset>
@@ -264,7 +269,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-12</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-13</span></p>
       </div>
     </section>
   </main>
@@ -318,6 +323,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
-  <script src="app.js?v=2026.11.01-12"></script>
+  <script src="app.js?v=2026.11.01-13"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-12";
+const APP_VERSION = "2026.11.01-13";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -90,9 +90,11 @@ const LATE_REASONS = ["Compensatory Rest", "Late Start"];
 const ROSTER_SHIFTS = {
   D: { label: "Day",   start: "07:00", finish: "19:00" },
   N: { label: "Night", start: "19:00", finish: "07:00" },
-  X: { label: "Road",  start: "07:00", finish: "19:00" },
+  X: { label: "Road",  start: "07:00", finish: "19:00" },   // station chosen from ROAD_STATIONS
   R: { label: "Rest Day" }
 };
+// Road shifts are worked from one of these bases.
+const ROAD_STATIONS = ["Sligo", "Manorhamilton", "Ballyshannon"];
 // Each line is one week, Monday → Sunday.
 const ROSTERS = {
   "neoc-a": {
@@ -374,7 +376,8 @@ function daySummary(d) {
   const c = excelCells(d);
   if (!d.roster) return { text: "Not entered yet", cls: "is-empty" };
   if (d.roster === "rest" && resolvedActual(d).kind === "none") return { text: "Rest Day", cls: "is-rest" };
-  let text = d.roster === "times" ? `${d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : ""}${c.rFrom}–${c.rTo}` : c.rFrom;
+  const tag = d.rosterLabel === "Road" ? `Road (${d.station || "station?"}) ` : d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : "";
+  let text = d.roster === "times" ? `${tag}${c.rFrom}–${c.rTo}` : c.rFrom;
   const a = resolvedActual(d);
   if (d.actual === "early" && d.actualMins) {
     text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
@@ -454,7 +457,8 @@ function rosterValue(d) {
   if (d.roster === "rest") return "rest";
   if (d.roster === "leave") return `leave:${d.rosterLeave}`;
   const preset = SHIFTS.find(s => s.start === d.rosterFrom && s.finish === d.rosterTo);
-  if (preset && shiftsForStation(d.station || "Other").includes(preset)) return `shift:${preset.start}`;
+  const st = d.rosterLabel === "Road" ? "Other" : (d.station || "Other");   // road shifts follow the roster, not station rules
+  if (preset && shiftsForStation(st).includes(preset)) return `shift:${preset.start}`;
   return "other";
 }
 
@@ -526,6 +530,7 @@ function renderRosterSettings() {
     Object.entries(ROSTERS).map(([id, r]) => opt(id, r.name, p.rosterId === id)).join("");
   $("pRosterWrap").hidden = !p.rosterId;
   if (!p.rosterId) return;
+  $("pRoadBase").innerHTML = opt("", "Ask each time", !p.roadBase) + ROAD_STATIONS.map(s => opt(s, s, p.roadBase === s)).join("");
   $("pRosterStart").value = p.rosterAnchor || mondayOf(isoLocal(new Date()));
   $("pRosterLine").innerHTML = opt("", "— Select —", !p.rosterAnchorLine) +
     ROSTERS[p.rosterId].lines.map((l, k) => opt(String(k + 1), `Line ${k + 1}  (${describeCodes(l)})`, p.rosterAnchorLine === k + 1)).join("");
@@ -847,7 +852,7 @@ function applyRoster(sheet) {
   rw.codes.forEach((code, i) => {
     const d = sheet.days[i];
     const sh = ROSTER_SHIFTS[code];
-    d.station = rw.roster.station;
+    d.station = code === "X" ? (state.profile.roadBase || "") : rw.roster.station;
     d.rosterLabel = sh.label;
     if (code === "R") {
       d.roster = "rest"; d.actual = "none"; d.done = true;
@@ -1007,6 +1012,7 @@ function dayEditor(d, i) {
   const rv = rosterValue(d);
   const st = d.station || state.profile.base || "Other";
   const isTimes = d.roster === "times";
+  const isRoad = isTimes && d.rosterLabel === "Road";
   const isSwap = d.rosterLeave === "Shift Swap" || (d.actual === "leave" && d.actualLeave === "Shift Swap");
 
   const shiftLen = shiftMins(d.rosterFrom, d.rosterTo);
@@ -1026,12 +1032,14 @@ function dayEditor(d, i) {
   <div class="day__body">
     <div class="grid-2">
       <div class="field">
-        <label>Station</label>
-        <select data-f="station" data-i="${i}">${STATIONS.map(s => opt(s, s, s === st)).join("")}</select>
+        <label>Station${isRoad ? ` <span class="req">required</span>` : ""}</label>
+        ${isRoad
+          ? `<select data-f="station" data-i="${i}" class="${ROAD_STATIONS.includes(d.station) ? "" : "needs"}">${opt("", "— Road shift from —", !ROAD_STATIONS.includes(d.station))}${ROAD_STATIONS.map(s => opt(s, s, s === d.station)).join("")}</select>`
+          : `<select data-f="station" data-i="${i}">${STATIONS.map(s => opt(s, s, s === st)).join("")}</select>`}
       </div>
       <div class="field">
         <label>Rostered</label>
-        <select data-f="rosterValue" data-i="${i}">${rosterOptions(st, rv)}</select>
+        <select data-f="rosterValue" data-i="${i}">${rosterOptions(isRoad ? "Other" : st, rv)}</select>
       </div>
     </div>
 
@@ -1333,6 +1341,7 @@ function dayErrors(d, i) {
   const errors = [];
   const n = DAYS[i].name;
   {
+    if (d.roster === "times" && d.rosterLabel === "Road" && !ROAD_STATIONS.includes(d.station)) errors.push(`${n}: choose which station the road shift was from.`);
     if (d.roster === "times" && !(isTime(d.rosterFrom) && isTime(d.rosterTo))) errors.push(`${n}: rostered start and finish times are needed.`);
     if (d.roster === "leave" && !d.rosterLeave) errors.push(`${n}: choose the leave type.`);
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
@@ -1989,6 +1998,7 @@ function bind() {
   });
   $("pRosterLine").addEventListener("change", onRosterChange);
   $("pRosterStart").addEventListener("change", onRosterChange);
+  $("pRoadBase").addEventListener("change", () => { state.profile.roadBase = $("pRoadBase").value; saveState(); toast("Road base saved."); });
   ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);
