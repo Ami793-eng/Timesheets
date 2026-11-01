@@ -13,26 +13,30 @@ const STORAGE_KEY = "timesheetHub_v1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
-  { name: "Monday",    short: "Mon", rosterRow: 8,  actualRow: 9,  subsRow: 8  },
-  { name: "Tuesday",   short: "Tue", rosterRow: 10, actualRow: 11, subsRow: 12 },
-  { name: "Wednesday", short: "Wed", rosterRow: 12, actualRow: 13, subsRow: 16 },
-  { name: "Thursday",  short: "Thu", rosterRow: 14, actualRow: 15, subsRow: 20 },
-  { name: "Friday",    short: "Fri", rosterRow: 16, actualRow: 17, subsRow: 24 },
-  { name: "Saturday",  short: "Sat", rosterRow: 18, actualRow: 19, subsRow: 28 },
-  { name: "Sunday",    short: "Sun", rosterRow: 20, actualRow: 21, subsRow: 32 }
+  { name: "Monday",    short: "Mon", rosterRow: 8,  actualRow: 9 },
+  { name: "Tuesday",   short: "Tue", rosterRow: 10, actualRow: 11 },
+  { name: "Wednesday", short: "Wed", rosterRow: 12, actualRow: 13 },
+  { name: "Thursday",  short: "Thu", rosterRow: 14, actualRow: 15 },
+  { name: "Friday",    short: "Fri", rosterRow: 16, actualRow: 17 },
+  { name: "Saturday",  short: "Sat", rosterRow: 18, actualRow: 19 },
+  { name: "Sunday",    short: "Sun", rosterRow: 20, actualRow: 21 }
 ];
 
 const EXCEL = {
   staffName: "F2",
   staffNumber: "N2",
   weekEnding: "G4",
+  station: "M4",      // header "Station:" (merged M4:P4)
   signature: "C23",
+  dateCol: "B",       // merged across roster + actual rows
+  stationCol: "F",    // "Station Worked from", merged across both rows
   fromCol: "D",       // roster row = rostered, actual row = actual
   toCol: "E",
   otFromCol: "K",     // on the roster row
   otToCol: "L",
   otReasonCol: "M",
-  subsCol: "G"        // 4 rows per day: From, To, Rate, Location/Incident
+  // Subsistence sits on the roster row: From, To, 5/10 hr, Location & Incident No
+  subsCols: ["G", "H", "I", "J"]
 };
 
 const STATIONS = ["Sligo", "Ballyshannon", "NEOC", "Manorhamilton", "Carrick on Shannon", "Other"];
@@ -75,7 +79,7 @@ const DECLARATION =
 /* ------------------------------------------------------------------ */
 
 let state = {
-  profile: { name: "", number: "", base: "", baseOther: "", emailTo: "", signatureText: "", signatureImage: "" },
+  profile: { name: "", number: "", base: "", baseOther: "", emailTo: "", signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
   currentId: null,
   sheets: []
 };
@@ -404,6 +408,10 @@ function renderProfile() {
   $("pBaseOtherWrap").hidden = p.base !== "Other";
   $("pEmailTo").value = p.emailTo;
   $("pSigText").value = p.signatureText;
+  $("pSigFont").value = p.signatureFont || SIG_FONTS[0].id;
+  const mode = p.signatureMode || "draw";
+  document.querySelector(`input[name="sigMode"][value="${mode}"]`).checked = true;
+  setSigMode(mode, { keep: true });
   drawSignatureImage(p.signatureImage);
 }
 
@@ -414,58 +422,187 @@ function saveProfile() {
   p.base = $("pBase").value;
   p.baseOther = $("pBaseOther").value.trim();
   p.emailTo = $("pEmailTo").value.trim();
-  p.signatureText = $("pSigText").value.trim();
-  p.signatureImage = sig.dirty ? $("sigPad").toDataURL("image/png") : (sig.empty ? "" : p.signatureImage);
-  sig.dirty = false;
+  storeSignature();
   saveState();
   toast("Details saved.");
 }
 
-/* Signature pad -------------------------------------------------------- */
+/* Signature ------------------------------------------------------------ */
+// Three ways to sign: draw, upload a picture, or type with a chosen font.
+// All three end up as the same PNG on the canvas, which goes into C23.
 
-const sig = { drawing: false, empty: true, dirty: false, last: null };
+const SIG_FONTS = [
+  { id: "dancing", label: "Dancing Script", family: "Dancing Script", size: 84 },
+  { id: "vibes",   label: "Great Vibes",    family: "Great Vibes",    size: 92 },
+  { id: "caveat",  label: "Caveat",         family: "Caveat",         size: 92 },
+  { id: "apple",   label: "Homemade Apple", family: "Homemade Apple", size: 60 },
+  { id: "plain",   label: "Plain (Arial)",  family: "Arial, Helvetica, sans-serif", size: 64, italic: true }
+];
+
+const sig = { mode: "draw", drawing: false, empty: true, last: null };
+
+function sigCtx() {
+  const ctx = $("sigPad").getContext("2d");
+  ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = "#111"; ctx.fillStyle = "#111";
+  return ctx;
+}
+function clearSig() {
+  const c = $("sigPad");
+  sigCtx().clearRect(0, 0, c.width, c.height);
+  sig.empty = true;
+}
+
+// Save the current signature into the profile straight away (no need to press Save).
+function storeSignature() {
+  const p = state.profile;
+  p.signatureMode = sig.mode;
+  p.signatureText = $("pSigText").value.trim();
+  p.signatureFont = $("pSigFont").value;
+  p.signatureImage = sig.empty ? "" : trimmedSignature();
+}
+function storeSignatureAndSave() { storeSignature(); saveState(); }
+
+// Crop transparent margins so the image fills the Excel signature box nicely.
+function trimmedSignature() {
+  const c = $("sigPad");
+  const { data, width, height } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+  let x0 = width, y0 = height, x1 = -1, y1 = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > 10) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return "";
+  const padPx = 6;
+  x0 = Math.max(0, x0 - padPx); y0 = Math.max(0, y0 - padPx);
+  x1 = Math.min(width - 1, x1 + padPx); y1 = Math.min(height - 1, y1 + padPx);
+  const out = document.createElement("canvas");
+  out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+  out.getContext("2d").drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out.toDataURL("image/png");
+}
+
+function setSigMode(mode, { keep = false } = {}) {
+  sig.mode = mode;
+  $("sigTypeOpts").hidden = mode !== "type";
+  $("sigUploadOpts").hidden = mode !== "upload";
+  $("sigPad").classList.toggle("sig-pad--draw", mode === "draw");
+  $("sigHint").textContent = {
+    draw: "Sign with your finger or mouse",
+    upload: "Preview of your uploaded signature",
+    type: "Preview of your typed signature"
+  }[mode];
+  if (keep) return;
+  clearSig();
+  if (mode === "type") renderTypedSig();
+  else storeSignatureAndSave();
+}
+
+async function renderTypedSig() {
+  const text = $("pSigText").value.trim() || $("pName").value.trim();
+  const font = SIG_FONTS.find(f => f.id === $("pSigFont").value) || SIG_FONTS[0];
+  const fontCss = size => `${font.italic ? "italic " : ""}${size}px ${font.family.includes(",") ? font.family : `"${font.family}"`}`;
+  try { await document.fonts.load(fontCss(font.size), text || "A"); } catch { /* fall back to whatever is available */ }
+  if (sig.mode !== "type") return;
+  clearSig();
+  if (!text) { storeSignatureAndSave(); return; }
+  const c = $("sigPad");
+  const ctx = sigCtx();
+  let size = font.size;
+  ctx.font = fontCss(size);
+  while (ctx.measureText(text).width > c.width - 40 && size > 20) { size -= 2; ctx.font = fontCss(size); }
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, c.width / 2, c.height / 2 + 4);
+  sig.empty = false;
+  storeSignatureAndSave();
+}
+
+function loadSigUpload(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) return toast("Please choose an image file (PNG or JPG).", true);
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const c = $("sigPad");
+      clearSig();
+      const ctx = sigCtx();
+      const scale = Math.min((c.width - 20) / img.width, (c.height - 20) / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+      // Make the paper background transparent and darken the ink.
+      const pix = ctx.getImageData(0, 0, c.width, c.height);
+      const d = pix.data;
+      for (let k = 0; k < d.length; k += 4) {
+        if (d[k + 3] === 0) continue;
+        const lum = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+        if (lum > 190) d[k + 3] = 0;
+        else if (lum > 140) d[k + 3] = Math.round(d[k + 3] * (190 - lum) / 50);
+      }
+      ctx.putImageData(pix, 0, 0);
+      sig.empty = false;
+      storeSignatureAndSave();
+      toast("Signature image added.");
+    };
+    img.onerror = () => toast("That image couldn't be opened.", true);
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
 
 function initSigPad() {
   const c = $("sigPad");
-  const ctx = c.getContext("2d");
+  $("pSigFont").innerHTML = SIG_FONTS.map(f => `<option value="${f.id}" style="font-family:${esc(f.family)}">${esc(f.label)}</option>`).join("");
   const pos = e => {
     const r = c.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
   };
   c.addEventListener("pointerdown", e => {
+    if (sig.mode !== "draw") return;
+    const ctx = sigCtx();
     sig.drawing = true; sig.last = pos(e); c.setPointerCapture(e.pointerId);
     ctx.beginPath(); ctx.arc(sig.last.x, sig.last.y, 1.2, 0, Math.PI * 2); ctx.fill();
-    sig.empty = false; sig.dirty = true;
+    sig.empty = false;
   });
   c.addEventListener("pointermove", e => {
     if (!sig.drawing) return;
+    const ctx = sigCtx();
     const p = pos(e);
     ctx.beginPath(); ctx.moveTo(sig.last.x, sig.last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
     sig.last = p;
   });
-  const end = () => { sig.drawing = false; };
+  const end = () => { if (sig.drawing) { sig.drawing = false; storeSignatureAndSave(); } };
   c.addEventListener("pointerup", end);
   c.addEventListener("pointercancel", end);
   $("sigClear").addEventListener("click", () => {
-    ctx.clearRect(0, 0, c.width, c.height);
-    sig.empty = true; sig.dirty = false;
+    clearSig();
+    if (sig.mode === "type") $("pSigText").value = "";
+    storeSignatureAndSave();
   });
-  styleSigCtx();
+  $("sigModes").addEventListener("change", e => setSigMode(e.target.value));
+  $("pSigText").addEventListener("input", renderTypedSig);
+  $("pSigFont").addEventListener("change", renderTypedSig);
+  $("sigUpload").addEventListener("change", e => { loadSigUpload(e.target.files[0]); e.target.value = ""; });
 }
-function styleSigCtx() {
-  const ctx = $("sigPad").getContext("2d");
-  ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.strokeStyle = "#111"; ctx.fillStyle = "#111";
-}
-function resizeSigPad() { styleSigCtx(); }
+function resizeSigPad() { sigCtx(); }
+
+// Draw a saved (trimmed) signature centred back onto the canvas.
 function drawSignatureImage(dataUrl) {
-  const c = $("sigPad");
-  const ctx = c.getContext("2d");
-  ctx.clearRect(0, 0, c.width, c.height);
-  sig.empty = !dataUrl; sig.dirty = false;
+  clearSig();
   if (!dataUrl) return;
+  sig.empty = false;
+  const c = $("sigPad");
   const img = new Image();
-  img.onload = () => ctx.drawImage(img, 0, 0, c.width, c.height);
+  img.onload = () => {
+    const scale = Math.min(1, (c.width - 10) / img.width, (c.height - 10) / img.height);
+    const w = img.width * scale, h = img.height * scale;
+    c.getContext("2d").drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+  };
   img.src = dataUrl;
 }
 
@@ -730,7 +867,7 @@ function dayEditor(d, i) {
       <div class="grid-2">
         <div class="field"><label>From</label><input type="time" data-f="subsFrom" data-i="${i}" value="${esc(d.subsFrom)}"></div>
         <div class="field"><label>To</label><input type="time" data-f="subsTo" data-i="${i}" value="${esc(d.subsTo)}"></div>
-        <div class="field"><label>Rate</label><input type="text" data-f="subsRate" data-i="${i}" value="${esc(d.subsRate)}" placeholder="e.g. 5 hr / 10 hr"></div>
+        <div class="field"><label>Rate</label><select data-f="subsRate" data-i="${i}">${opt("", "— Select —", !d.subsRate)}${["5 hr", "10 hr"].map(r => opt(r, r, d.subsRate === r)).join("")}</select></div>
         <div class="field"><label>Location / incident</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}"></div>
       </div>` : ""}
     </fieldset>` : ""}
@@ -753,7 +890,7 @@ function onDayInput(e) {
   const d = sheet.days[i];
 
   // Plain text fields: save without re-rendering (keeps the keyboard open).
-  const textFields = ["otReason", "subsRate", "subsLocation", "swapNote"];
+  const textFields = ["otReason", "subsLocation", "swapNote"];
   if (textFields.includes(f)) {
     d[f] = el.value;
     if (f === "otReason") el.classList.toggle("needs", !el.value.trim());
@@ -958,7 +1095,7 @@ async function buildWorkbookFile(sheet, suffix = "") {
     await wb.xlsx.load(tpl);
     ws = wb.worksheets[0];
   } else {
-    ws = buildDefaultLayout(wb, sheet);
+    ws = buildDefaultLayout(wb);
   }
   fillWorksheet(wb, ws, sheet);
   const buffer = await wb.xlsx.writeBuffer();
@@ -976,10 +1113,18 @@ function fillWorksheet(wb, ws, sheet) {
   setCell(ws, EXCEL.staffName, staff.name);
   setCell(ws, EXCEL.staffNumber, staff.number);
   setCell(ws, EXCEL.weekEnding, displayDate(sheet.weekEnding));
+  setCell(ws, EXCEL.station, staff.base);
 
   sheet.days.forEach((d, i) => {
     const m = DAYS[i];
     const c = excelCells(d);
+    // Real Excel date (UTC midnight so it never shifts a day); template formats it dd/mm/yy.
+    const [yy, mm, dd] = d.date.split("-").map(Number);
+    const dateCell = ws.getCell(`${EXCEL.dateCol}${m.rosterRow}`);
+    dateCell.value = new Date(Date.UTC(yy, mm - 1, dd));
+    dateCell.numFmt = "dd/mm/yy";
+    const worked = d.roster === "times" || resolvedActual(d).kind === "times";
+    setCell(ws, `${EXCEL.stationCol}${m.rosterRow}`, worked ? (d.station || staff.base) : "");
     setCell(ws, `${EXCEL.fromCol}${m.rosterRow}`, c.rFrom);
     setCell(ws, `${EXCEL.toCol}${m.rosterRow}`, c.rTo);
     setCell(ws, `${EXCEL.fromCol}${m.actualRow}`, c.aFrom);
@@ -987,9 +1132,8 @@ function fillWorksheet(wb, ws, sheet) {
     setCell(ws, `${EXCEL.otFromCol}${m.rosterRow}`, c.otFrom);
     setCell(ws, `${EXCEL.otToCol}${m.rosterRow}`, c.otTo);
     setCell(ws, `${EXCEL.otReasonCol}${m.rosterRow}`, c.otReason);
-    const r = m.subsRow;
     const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate.trim(), d.subsLocation.trim()] : ["", "", "", ""];
-    subs.forEach((v, k) => setCell(ws, `${EXCEL.subsCol}${r + k}`, v));
+    subs.forEach((v, k) => setCell(ws, `${EXCEL.subsCols[k]}${m.rosterRow}`, v));
   });
 
   // Signature: drawn image if available, otherwise typed name.
@@ -997,53 +1141,56 @@ function fillWorksheet(wb, ws, sheet) {
     setCell(ws, EXCEL.signature, null);
     const imageId = wb.addImage({ base64: staff.signatureImage, extension: "png" });
     const cell = ws.getCell(EXCEL.signature);
-    ws.addImage(imageId, { tl: { col: cell.col - 1, row: cell.row - 1 }, ext: { width: 150, height: 40 }, editAs: "oneCell" });
+    const { w, h } = pngSize(staff.signatureImage);
+    // Fit within the signature row (points → pixels), leaving a small margin.
+    const rowPx = (ws.getRow(cell.row).height || 15) * 4 / 3;
+    const height = Math.max(18, Math.round(rowPx * 0.85));
+    const width = Math.min(230, Math.round(height * (w / h || 3.75)));
+    ws.addImage(imageId, { tl: { col: cell.col - 1 + 0.05, row: cell.row - 1 + 0.06 }, ext: { width, height }, editAs: "oneCell" });
   } else {
     setCell(ws, EXCEL.signature, staff.signatureText || staff.name);
   }
 }
 
 // Used only when no template.xlsx is deployed beside index.html.
-function buildDefaultLayout(wb, sheet) {
-  const ws = wb.addWorksheet("Timesheet", { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 } });
-  const widths = { A: 12, B: 11, C: 10, D: 18, E: 10, F: 26, G: 22, H: 3, I: 3, J: 3, K: 10, L: 10, M: 34, N: 12 };
+// Mirrors the layout of the real template (same columns and rows).
+function buildDefaultLayout(wb) {
+  const ws = wb.addWorksheet("Sheet1", { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 } });
+  const widths = { A: 11, B: 11, C: 8, D: 14, E: 8, F: 14, G: 8, H: 8, I: 7, J: 18, K: 8, L: 8, M: 22, N: 8, O: 8, P: 10 };
   Object.entries(widths).forEach(([col, w]) => { ws.getColumn(col).width = w; });
   const bold = { bold: true };
   const label = (addr, text) => { const c = ws.getCell(addr); c.value = text; c.font = bold; };
 
-  ws.getCell("A1").value = "Weekly Timesheet";
-  ws.getCell("A1").font = { bold: true, size: 14 };
-  label("D2", "Staff name");
-  label("L2", "Staff no.");
-  label("D4", "Week ending");
-  label("A6", "Day");
-  label("B6", "Date");
-  label("D6", "From");
-  label("E6", "To");
-  label("F6", "Subsistence");
-  label("K6", "OT from");
-  label("L6", "OT to");
-  label("M6", "OT reason / incident no.");
+  label("D2", "Name:");
+  label("K2", "Personnel Number:");
+  label("D4", "Date Week Ending:");
+  label("K4", "Station:");
+  label("A6", "Day"); label("B6", "Date"); label("D6", "Time");
+  label("F6", "Station Worked from"); label("G6", "Subsistence"); label("K6", "Overtime Hours Worked");
+  ["D7:From", "E7:To", "G7:From", "H7:To", "I7:5/10 hr", "J7:Location & Incident No", "K7:From", "L7:To", "M7:Reason for O/T Incident No."]
+    .forEach(x => { const [a, t] = x.split(/:(.+)/); label(a, t); });
 
-  const dates = weekDates(sheet.weekEnding);
-  DAYS.forEach((m, i) => {
-    ws.getCell(`A${m.rosterRow}`).value = m.name;
-    ws.getCell(`A${m.rosterRow}`).font = bold;
-    ws.getCell(`B${m.rosterRow}`).value = displayDate(dates[i]);
-    ws.getCell(`C${m.rosterRow}`).value = "Rostered";
+  DAYS.forEach(m => {
+    label(`A${m.rosterRow}`, m.name);
+    ws.getCell(`C${m.rosterRow}`).value = "Roster";
     ws.getCell(`C${m.actualRow}`).value = "Actual";
-    ["From", "To", "Rate", "Location / incident"].forEach((t, k) => {
-      ws.getCell(`F${m.subsRow + k}`).value = `${m.short} subsistence ${t.toLowerCase()}`;
-    });
-    ["C", "D", "E", "K", "L", "M"].forEach(col => {
-      ws.getCell(`${col}${m.actualRow}`).border = { bottom: { style: "thin", color: { argb: "FF999999" } } };
-    });
+    ["A", "B", "F", "G", "H", "I", "J", "K", "L", "M"].forEach(col => ws.mergeCells(`${col}${m.rosterRow}:${col}${m.actualRow}`));
   });
-  label("B23", "Signature");
+  label("A23", "Employee Signature:");
+  label("J23", "Line Manager Signature:");
   ws.getRow(23).height = 34;
-  ws.getCell("A37").value = DECLARATION;
-  ws.getCell("A37").font = { italic: true, size: 9 };
+  ws.getCell("A26").value = DECLARATION;
+  ws.getCell("A26").font = { italic: true, size: 9 };
   return ws;
+}
+
+// Read width/height from a PNG data URL's header (no async image load needed).
+function pngSize(dataUrl) {
+  try {
+    const bin = atob(dataUrl.split(",")[1].slice(0, 44));
+    const n = o => ((bin.charCodeAt(o) << 24) | (bin.charCodeAt(o + 1) << 16) | (bin.charCodeAt(o + 2) << 8) | bin.charCodeAt(o + 3)) >>> 0;
+    return { w: n(16), h: n(20) };
+  } catch { return { w: 0, h: 0 }; }
 }
 
 function fileName(sheet, suffix = "") {
@@ -1269,6 +1416,7 @@ function bind() {
   $("libFilter").addEventListener("change", renderLibrary);
 
   $("pBase").addEventListener("change", () => { $("pBaseOtherWrap").hidden = $("pBase").value !== "Other"; });
+  $("pName").addEventListener("input", () => { if (sig.mode === "type" && !$("pSigText").value.trim()) renderTypedSig(); });
   $("saveProfileBtn").addEventListener("click", saveProfile);
   $("exportBackupBtn").addEventListener("click", exportBackup);
   $("importBackupBtn").addEventListener("click", () => $("importBackupFile").click());

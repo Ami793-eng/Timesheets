@@ -160,15 +160,39 @@
 
         <div class="field">
           <span class="label">Signature</span>
+          <div class="segmented sig-modes" id="sigModes">
+            <label><input type="radio" name="sigMode" value="draw" checked> Draw</label>
+            <label><input type="radio" name="sigMode" value="upload"> Upload image</label>
+            <label><input type="radio" name="sigMode" value="type"> Type</label>
+          </div>
+
+          <div class="sig-opts" id="sigTypeOpts" hidden>
+            <div class="grid-2">
+              <div class="field">
+                <label for="pSigText">Signature text</label>
+                <input type="text" id="pSigText" placeholder="e.g. A. Mitchell">
+              </div>
+              <div class="field">
+                <label for="pSigFont">Font</label>
+                <select id="pSigFont"></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="sig-opts" id="sigUploadOpts" hidden>
+            <label class="btn" for="sigUpload">Choose signature image…</label>
+            <input type="file" id="sigUpload" accept="image/png,image/jpeg,image/webp,image/gif" class="visually-hidden">
+            <span class="hint">A photo or scan of your signature on white paper works best. The white background is removed automatically.</span>
+          </div>
+
           <div class="sig-wrap">
-            <canvas id="sigPad" width="600" height="160" aria-label="Signature pad"></canvas>
+            <canvas id="sigPad" width="600" height="160" aria-label="Signature preview"></canvas>
             <div class="sig-actions">
-              <span class="hint">Sign with your finger or mouse</span>
+              <span class="hint" id="sigHint">Sign with your finger or mouse</span>
               <button class="btn btn--small" id="sigClear" type="button">Clear</button>
             </div>
           </div>
-          <label for="pSigText" class="label label--sub">…or type your name as signature</label>
-          <input type="text" id="pSigText" placeholder="Typed signature (used if nothing is drawn)">
+          <small class="hint">This preview is what goes into the Employee Signature box on the Excel sheet.</small>
         </div>
 
         <button class="btn btn--primary" id="saveProfileBtn">Save details</button>

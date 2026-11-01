@@ -1,5 +1,11 @@
 /* Timesheet Hub — styles.css */
 
+/* Handwriting fonts for typed signatures (bundled, see fonts/LICENSES.txt) */
+@font-face { font-family: "Dancing Script"; src: url("fonts/dancing-script.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Great Vibes"; src: url("fonts/great-vibes.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Caveat"; src: url("fonts/caveat.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Homemade Apple"; src: url("fonts/homemade-apple.woff2") format("woff2"); font-display: swap; }
+
 :root {
   --bg: #f3f5f7;
   --surface: #ffffff;
@@ -230,7 +236,12 @@ fieldset.sub .segmented { margin-bottom: 10px; }
 
 /* Signature ---------------------------------------------------------- */
 .sig-wrap { border: 1px dashed var(--border); border-radius: 10px; background: #fff; overflow: hidden; }
-#sigPad { display: block; width: 100%; height: auto; aspect-ratio: 600 / 160; touch-action: none; cursor: crosshair; }
+#sigPad { display: block; width: 100%; height: auto; aspect-ratio: 600 / 160; }
+#sigPad.sig-pad--draw { touch-action: none; cursor: crosshair; }
+.sig-modes { margin-bottom: 10px; }
+.sig-opts { margin-bottom: 10px; }
+.sig-opts .hint { margin-top: .5rem; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sig-actions { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: var(--surface-2); border-top: 1px solid var(--border); }
 .sig-actions .hint { margin: 0; }
 

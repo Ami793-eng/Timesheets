@@ -6,7 +6,12 @@ Staff fill in their week (they can save it and come back during the week), publi
 
 ## Features
 
-- **My details:** name, staff number, base, and a signature (drawn with a finger or typed). These are entered once and added to every timesheet.
+- **My details:** name, staff number and base are entered once and added to every timesheet. The signature can be done three ways:
+  - **Draw** it with a finger or mouse.
+  - **Upload** a photo or scan. The paper background is removed automatically.
+  - **Type** it and pick a font: Dancing Script, Great Vibes, Caveat, Homemade Apple, or plain Arial.
+
+  Whichever you choose, the signature is placed as an image in the Employee Signature box.
 - **Quick fill:** tap several days, pick a shift or leave type, and apply it to all of them at once.
   - The shift list follows the station's rules:
     - NEOC and Ballyshannon: 07:00 / 19:00
@@ -32,15 +37,21 @@ Staff fill in their week (they can save it and come back during the week), publi
 
 ## Excel cell map
 
+These positions match `New_Timesheet_Template_2025.xlsx`, which is included as `template.xlsx`.
+
 | What | Cells |
 |---|---|
-| Staff name / number | F2 / N2 |
-| Week ending (dd/mm/yyyy) | G4 |
-| Signature (image or typed) | C23 |
-| Roster From / To (each day) | D / E on rows 8, 10, 12, 14, 16, 18, 20 (Mon–Sun) |
-| Actual From / To (each day) | D / E on rows 9, 11, 13, 15, 17, 19, 21 |
-| OT From / To / Reason | K / L / M on the roster row |
-| Subsistence (each day: From, To, Rate, Location) | Mon G8:G11, Tue G12:G15, Wed G16:G19, Thu G20:G23, Fri G24:G27, Sat G28:G31, Sun G32:G35 |
+| Name / Personnel Number | F2 / N2 |
+| Date Week Ending (dd/mm/yyyy) | G4 |
+| Station (your base) | M4 |
+| Employee Signature (image) | C23 |
+| Day rows (Mon–Sun) | Roster rows 8, 10, 12, 14, 16, 18, 20; Actual rows 9, 11, 13, 15, 17, 19, 21 |
+| Date | B, on the roster row (a real date, shown as dd/mm/yy) |
+| Time From / To | D / E, on the roster row and on the actual row |
+| Station Worked from | F, on the roster row (only on days worked) |
+| Subsistence From / To / 5/10 hr / Location & Incident No | G / H / I / J, on the roster row |
+| Overtime From / To / Reason for O/T Incident No. | K / L / M, on the roster row |
+| On-Call (N–P) | Not used |
 
 How each day type is written:
 
@@ -50,9 +61,11 @@ How each day type is written:
 
 These positions are set in `EXCEL` and `DAYS` at the top of `app.js`, so they're easy to change if the template moves.
 
+> The very first cell map in the planning conversation stacked subsistence down column G (G8:G35). The real template has one subsistence row per day across G–J, so the app follows the template.
+
 ## The Excel template
 
-Put your real timesheet workbook in this folder, named exactly **`template.xlsx`**, next to `index.html`. The app fills the cells above on the **first worksheet** and keeps everything else as it is.
+`template.xlsx` is the NAS 2025 timesheet. The app fills the cells above on the **first worksheet** and keeps everything else as it is: formatting, logo and notes. To use a newer template, replace the file and keep the same name. If the layout changes, update `EXCEL` / `DAYS` in `app.js`.
 
 If there's no `template.xlsx`, the app makes a basic sheet that uses the same cell positions. The bottom of **My details** shows which one is in use.
 
@@ -66,6 +79,7 @@ If there's no `template.xlsx`, the app makes a basic sheet that uses the same ce
    - `app.js`
    - the `lib` folder
    - `template.xlsx`
+   - the `fonts` folder
    - `README.md`
 2. In the repository, go to **Settings → Pages**.
 3. Under *Build and deployment*, choose **Deploy from a branch**. Pick `main` and `/ (root)`, then click **Save**.
@@ -95,4 +109,5 @@ Then open http://localhost:8000.
 | `styles.css` | Look and layout (mobile-first, supports dark mode) |
 | `app.js` | All behaviour: saving, shift rules, overtime, Excel export, library |
 | `lib/exceljs.min.js` | Excel library (ExcelJS 4.4.0, MIT licence), bundled so there's no CDN dependency |
-| `template.xlsx` | *Add this:* your real timesheet template |
+| `template.xlsx` | The NAS timesheet template the app fills in |
+| `fonts/` | Handwriting fonts for typed signatures (open licences, see `fonts/LICENSES.txt`) |

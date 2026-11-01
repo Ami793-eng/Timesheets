@@ -1,0 +1,6 @@
+Signature fonts bundled with Timesheet Hub (self-hosted copies from Fontsource / Google Fonts):
+
+- Dancing Script  — SIL Open Font License 1.1 — https://github.com/googlefonts/DancingScript
+- Great Vibes     — SIL Open Font License 1.1 — https://github.com/googlefonts/great-vibes
+- Caveat          — SIL Open Font License 1.1 — https://github.com/googlefonts/caveat
+- Homemade Apple  — Apache License 2.0        — https://fonts.google.com/specimen/Homemade+Apple
