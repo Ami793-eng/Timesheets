@@ -193,22 +193,16 @@
 
         <fieldset class="sub recipients">
           <legend>Email recipients</legend>
-          <p class="hint">Tick who your timesheet goes to by default. You can change the ticks each time you send. Names are used in the greeting ("Hello …").</p>
+          <p class="hint">Add as many ORMs and supervisors as you need. Tick <em>Default</em> on the ones usually sent to; you choose exactly who gets it each time you send. The greeting uses their first name ("Hello John").</p>
 
           <div class="recip">
-            <label class="recip-tick"><input type="checkbox" id="pOrmDefault"> <span>ORM</span></label>
-            <div class="grid-2">
-              <div class="field"><label for="pOrmName">Name</label><input type="text" id="pOrmName" placeholder="e.g. John" autocomplete="off"></div>
-              <div class="field"><label for="pOrmEmail">Email</label><input type="email" id="pOrmEmail" placeholder="ORM email" autocomplete="off"></div>
-            </div>
+            <div class="recip-head"><strong>ORM</strong><button type="button" class="btn btn--small" id="addOrmBtn">+ Add ORM</button></div>
+            <div id="ormList" class="contact-list"></div>
           </div>
 
           <div class="recip">
-            <label class="recip-tick"><input type="checkbox" id="pSupDefault"> <span>Supervisor</span></label>
-            <div class="grid-2">
-              <div class="field"><label for="pSupName">Name</label><input type="text" id="pSupName" placeholder="e.g. Mary" autocomplete="off"></div>
-              <div class="field"><label for="pSupEmail">Email</label><input type="email" id="pSupEmail" placeholder="Supervisor email" autocomplete="off"></div>
-            </div>
+            <div class="recip-head"><strong>Supervisors</strong><button type="button" class="btn btn--small" id="addSupBtn">+ Add supervisor</button></div>
+            <div id="supList" class="contact-list"></div>
           </div>
 
           <div class="recip">

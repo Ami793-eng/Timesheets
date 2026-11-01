@@ -80,7 +80,8 @@ const DECLARATION =
 
 let state = {
   profile: { name: "", number: "", base: "", baseOther: "",
-    ormName: "", supName: "", ormEmail: "", supEmail: "", meEmail: "", ormDefault: true, supDefault: false, meDefault: true,
+    contacts: [],            // [{ id, role: "orm" | "sup", name, email, default }]
+    meEmail: "", meDefault: true,
     signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
   currentId: null,
   sheets: []
@@ -104,8 +105,7 @@ function loadState() {
         sheets: Array.isArray(parsed.sheets) ? parsed.sheets : []
       };
       // Older versions had a single "send to" address: treat it as the ORM.
-      if (parsed.profile?.emailTo && !state.profile.ormEmail) state.profile.ormEmail = parsed.profile.emailTo;
-      delete state.profile.emailTo;
+      migrateContacts(state.profile);
     }
   } catch (err) {
     console.error(err);
@@ -411,11 +411,9 @@ function renderProfile() {
   $("pBase").innerHTML = opt("", "— Select —", !p.base) + STATIONS.map(s => opt(s, s, p.base === s)).join("");
   $("pBaseOther").value = p.baseOther;
   $("pBaseOtherWrap").hidden = p.base !== "Other";
-  RECIPIENTS.forEach(r => {
-    $(r.emailId).value = p[r.emailKey] || "";
-    if (r.nameId) $(r.nameId).value = p[r.nameKey] || "";
-    $(r.defaultId).checked = !!p[r.defaultKey];
-  });
+  $("pMeEmail").value = p.meEmail || "";
+  $("pMeDefault").checked = !!p.meDefault;
+  renderContacts();
   $("pSigText").value = p.signatureText;
   $("pSigFont").value = p.signatureFont || SIG_FONTS[0].id;
   const mode = p.signatureMode || "draw";
@@ -430,13 +428,14 @@ function saveProfile() {
   p.number = $("pNumber").value.trim();
   p.base = $("pBase").value;
   p.baseOther = $("pBaseOther").value.trim();
-  const bad = [];
-  RECIPIENTS.forEach(r => {
-    p[r.emailKey] = $(r.emailId).value.trim();
-    if (r.nameId) p[r.nameKey] = $(r.nameId).value.trim();
-    p[r.defaultKey] = $(r.defaultId).checked;
-    if (p[r.emailKey] && !isEmail(p[r.emailKey])) bad.push(r.label);
-  });
+  p.meEmail = $("pMeEmail").value.trim();
+  p.meDefault = $("pMeDefault").checked;
+  p.contacts = p.contacts.filter(c => c.name || c.email);   // drop empty rows
+  renderContacts();
+  const bad = [
+    ...p.contacts.filter(c => c.email && !isEmail(c.email)).map(c => c.name || ROLE_LABEL[c.role]),
+    ...(p.meEmail && !isEmail(p.meEmail) ? ["your own"] : [])
+  ];
   storeSignature();
   saveState();
   if (bad.length) return toast(`Check the ${bad.join(" and ")} email address — it doesn't look right.`, true);
@@ -1230,11 +1229,80 @@ function downloadFile(file) {
 
 /* Email -------------------------------------------------------------- */
 
-const RECIPIENTS = [
-  { key: "orm", label: "ORM",        kind: "to", nameKey: "ormName", nameId: "pOrmName", emailKey: "ormEmail", defaultKey: "ormDefault", emailId: "pOrmEmail", defaultId: "pOrmDefault" },
-  { key: "sup", label: "Supervisor", kind: "to", nameKey: "supName", nameId: "pSupName", emailKey: "supEmail", defaultKey: "supDefault", emailId: "pSupEmail", defaultId: "pSupDefault" },
-  { key: "me",  label: "Me",         kind: "cc", emailKey: "meEmail",  defaultKey: "meDefault",  emailId: "pMeEmail",  defaultId: "pMeDefault" }
-];
+const ROLE_LABEL = { orm: "ORM", sup: "Supervisor" };
+const ROLES = ["orm", "sup"];
+
+function newId() { return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
+
+// Older versions stored one ORM / one supervisor (or a single "send to" address).
+function migrateContacts(p) {
+  if (!Array.isArray(p.contacts)) p.contacts = [];
+  const add = (role, name, email, def) => {
+    if ((name || email) && !p.contacts.some(c => c.role === role && c.email === email && c.name === name)) {
+      p.contacts.push({ id: newId(), role, name: name || "", email: email || "", default: !!def });
+    }
+  };
+  add("orm", p.ormName, p.ormEmail || p.emailTo, p.ormDefault ?? true);
+  add("sup", p.supName, p.supEmail, p.supDefault);
+  ["ormName", "ormEmail", "ormDefault", "supName", "supEmail", "supDefault", "emailTo"].forEach(k => delete p[k]);
+}
+
+function firstName(name) { return String(name || "").trim().split(/\s+/)[0] || ""; }
+
+/* My details: editable contact lists */
+function renderContacts() {
+  ROLES.forEach(role => {
+    const list = state.profile.contacts.filter(c => c.role === role);
+    $(`${role}List`).innerHTML = list.length ? list.map(c => `
+      <div class="contact" data-contact="${esc(c.id)}">
+        <label class="contact__def" title="Ticked by default when sending">
+          <input type="checkbox" data-cf="default" ${c.default ? "checked" : ""}> <span>Default</span>
+        </label>
+        <input type="text" data-cf="name" value="${esc(c.name)}" placeholder="Name, e.g. John Campbell" aria-label="${ROLE_LABEL[role]} name">
+        <input type="email" data-cf="email" value="${esc(c.email)}" placeholder="Email" aria-label="${ROLE_LABEL[role]} email" class="${c.email && !isEmail(c.email) ? "needs" : ""}">
+        <button type="button" class="btn btn--small btn--danger-ghost contact__del" data-cf-del aria-label="Remove">Remove</button>
+      </div>`).join("")
+      : `<p class="hint contact-empty">No ${ROLE_LABEL[role] === "ORM" ? "ORMs" : "supervisors"} added yet.</p>`;
+  });
+}
+
+function onContactEdit(e) {
+  const row = e.target.closest("[data-contact]");
+  const f = e.target.dataset.cf;
+  if (!row || !f) return;
+  const c = state.profile.contacts.find(x => x.id === row.dataset.contact);
+  if (!c) return;
+  if (f === "default") c.default = e.target.checked;
+  else c[f] = e.target.value.trim();
+  if (f === "email" && e.type === "change") e.target.classList.toggle("needs", !!c.email && !isEmail(c.email));
+  saveSoon();
+}
+
+function addContact(role) {
+  const c = { id: newId(), role, name: "", email: "", default: !state.profile.contacts.some(x => x.role === role) };
+  state.profile.contacts.push(c);
+  renderContacts();
+  document.querySelector(`[data-contact="${c.id}"] [data-cf="name"]`)?.focus();
+  saveSoon();
+}
+
+function removeContact(id) {
+  const c = state.profile.contacts.find(x => x.id === id);
+  if (!c) return;
+  if ((c.name || c.email) && !confirm(`Remove ${c.name || c.email}?`)) return;
+  state.profile.contacts = state.profile.contacts.filter(x => x.id !== id);
+  renderContacts();
+  saveState();
+}
+
+/* Send dialog: everyone, grouped by role */
+function recipientOptions() {
+  const p = state.profile;
+  return [
+    ...p.contacts.filter(c => c.name || c.email).map(c => ({ id: c.id, role: c.role, roleLabel: ROLE_LABEL[c.role], name: c.name, email: c.email, def: c.default, kind: "to" })),
+    { id: "me", role: "me", roleLabel: "Me", name: p.name, email: p.meEmail, def: p.meDefault, kind: "cc" }
+  ];
+}
 
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 function fmtWhen(iso) { return new Date(iso).toLocaleString("en-IE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
@@ -1253,7 +1321,7 @@ function joinNames(names) {
 function emailText(sheet, rec = { to: [], cc: [] }) {
   const staff = sheet.staff || state.profile;
   const amended = amendLabel(sheet);
-  const names = rec.to.map(r => r.name).filter(Boolean);
+  const names = rec.to.map(r => firstName(r.name)).filter(Boolean);
   const subject = `${staff.name} Timesheet ${displayDate(sheet.weekEnding)}${amended ? ` ${amended}` : ""}`;
   const body = [
     names.length ? `Hello ${joinNames(names)}` : "Hello",
@@ -1279,7 +1347,8 @@ function renderSendPreview() {
 }
 
 function sendLine(rec) {
-  const names = [...rec.to, ...rec.cc].map(r => r.label).join(", ");
+  const who = r => r.role === "me" ? "Me" : (r.name ? `${r.name} (${r.label})` : r.label);
+  const names = [...rec.to, ...rec.cc].map(who).join(", ");
   return `${names} · ${fmtWhen(rec.at)}`;
 }
 
@@ -1289,16 +1358,24 @@ function openSendDialog(id) {
   ui.sendId = id;
   const p = state.profile;
   $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${amendLabel(sheet) ? ` · ${amendLabel(sheet)}` : ""} · ${fileName(sheet)}`;
-  $("sendBoxes").innerHTML = RECIPIENTS.map(r => {
-    const email = p[r.emailKey];
-    const ok = email && isEmail(email);
-    return `
-      <label class="send-box ${ok ? "" : "send-box--off"}">
-        <input type="checkbox" name="recip" value="${r.key}" ${ok && p[r.defaultKey] ? "checked" : ""} ${ok ? "" : "disabled"}>
-        <span class="send-box__label">${r.label}${r.nameKey && p[r.nameKey] ? ` · ${esc(p[r.nameKey])}` : ""}${r.kind === "cc" ? ` <small>CC</small>` : ""}</span>
-        <span class="send-box__email">${ok ? esc(email) : `No email set — <a href="#" data-goto="profile" data-close-send>add in My details</a>`}</span>
-      </label>`;
-  }).join("");
+  const opts = recipientOptions();
+  const group = (title, items, emptyText) => `
+    <div class="send-group">
+      <div class="send-group__title">${title}</div>
+      ${items.length ? items.map(r => {
+        const ok = r.email && isEmail(r.email);
+        return `
+        <label class="send-box ${ok ? "" : "send-box--off"}">
+          <input type="checkbox" name="recip" value="${esc(r.id)}" ${ok && r.def ? "checked" : ""} ${ok ? "" : "disabled"}>
+          <span class="send-box__label">${r.role === "me" ? "Me <small>CC</small>" : esc(r.name || r.roleLabel)}</span>
+          <span class="send-box__email">${ok ? esc(r.email) : `No valid email — <a href="#" data-goto="profile" data-close-send>fix in My details</a>`}</span>
+        </label>`;
+      }).join("") : `<p class="hint">${emptyText} <a href="#" data-goto="profile" data-close-send>Add in My details</a></p>`}
+    </div>`;
+  $("sendBoxes").innerHTML =
+    group("ORM", opts.filter(r => r.role === "orm"), "No ORMs added yet.") +
+    group("Supervisor", opts.filter(r => r.role === "sup"), "No supervisors added yet.") +
+    group("Me", opts.filter(r => r.role === "me"), "");
   const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })] }));
   $("sendShareBtn").hidden = !canShare;
   $("sendHow").textContent = canShare
@@ -1313,9 +1390,9 @@ function openSendDialog(id) {
 }
 
 function chosenRecipients() {
-  const picked = [...document.querySelectorAll('#sendBoxes input[name="recip"]:checked')].map(i => i.value);
-  const p = state.profile;
-  const list = RECIPIENTS.filter(r => picked.includes(r.key)).map(r => ({ role: r.key, label: r.label, name: r.nameKey ? p[r.nameKey] : p.name, email: p[r.emailKey], kind: r.kind }));
+  const picked = new Set([...document.querySelectorAll('#sendBoxes input[name="recip"]:checked')].map(i => i.value));
+  const list = recipientOptions().filter(r => picked.has(r.id))
+    .map(r => ({ role: r.role, label: r.roleLabel, name: r.name, email: r.email, kind: r.kind }));
   return {
     to: list.filter(r => r.kind === "to").map(({ kind, ...r }) => r),
     cc: list.filter(r => r.kind === "cc").map(({ kind, ...r }) => r)
@@ -1325,7 +1402,7 @@ function chosenRecipients() {
 function recordSend(sheet, rec) {
   sheet.sends = sheet.sends || [];
   sheet.sends.push(rec);
-  const fmt = arr => arr.map(r => `${r.label} (${r.email})`).join(", ");
+  const fmt = arr => arr.map(r => `${r.role === "me" ? "Me" : `${r.name || r.label} [${r.label}]`} <${r.email}>`).join(", ");
   touch(sheet, `Sent by email to ${fmt(rec.to) || "—"}${rec.cc.length ? `; CC ${fmt(rec.cc)}` : ""}${rec.method === "share" ? " (via share)" : ""}`);
   saveState();
   renderLibrary();
@@ -1416,7 +1493,7 @@ function renderLibrary() {
 function searchText(s) {
   return [
     displayDate(s.weekEnding), s.weekEnding, s.status, amendLabel(s) ? `amended ${amendLabel(s)}` : "", s.sends?.length ? "sent emailed" : "not sent",
-    ...(s.sends || []).flatMap(r => [...r.to, ...r.cc].flatMap(x => [x.label, x.email])),
+    ...(s.sends || []).flatMap(r => [...r.to, ...r.cc].flatMap(x => [x.label, x.name, x.email])),
     ...s.days.flatMap(d => [d.station, d.rosterLeave, d.actualLeave, d.otReason, d.subsLocation, d.swapNote])
   ].join(" ").toLowerCase();
 }
@@ -1553,6 +1630,13 @@ function bind() {
   $("pBase").addEventListener("change", () => { $("pBaseOtherWrap").hidden = $("pBase").value !== "Other"; });
   $("pName").addEventListener("input", () => { if (sig.mode === "type" && !$("pSigText").value.trim()) renderTypedSig(); });
   $("saveProfileBtn").addEventListener("click", saveProfile);
+  ["ormList", "supList"].forEach(id => {
+    $(id).addEventListener("input", onContactEdit);
+    $(id).addEventListener("change", onContactEdit);
+    $(id).addEventListener("click", e => { const b = e.target.closest("[data-cf-del]"); if (b) removeContact(b.closest("[data-contact]").dataset.contact); });
+  });
+  $("addOrmBtn").addEventListener("click", () => addContact("orm"));
+  $("addSupBtn").addEventListener("click", () => addContact("sup"));
   $("exportBackupBtn").addEventListener("click", exportBackup);
   $("importBackupBtn").addEventListener("click", () => $("importBackupFile").click());
   $("importBackupFile").addEventListener("change", importBackup);
@@ -1572,7 +1656,7 @@ function bind() {
     const { to, cc } = chosenRecipients();
     if (!to.length && !cc.length) {
       e.preventDefault();
-      return toast("Tick at least one box: ORM, Supervisor or Me.", true);
+      return toast("Tick at least one person to send to.", true);
     }
     sendSheet(method).catch(err => alert("Couldn't send: " + err.message));
   });

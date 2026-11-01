@@ -31,18 +31,15 @@ Staff fill in their week (they can save it and come back during the week), publi
   - Shift Swap, which takes an optional note
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
-- **Email recipients:** set them up in My details, under the signature. There are three boxes, each with a default tick:
-  - **ORM:** name and email.
-  - **Supervisor:** name and email.
-  - **Me:** your own email.
-
-  ORM and Supervisor go in *To*, and Me goes in *CC*.
-- **Sending:** after publishing, or from the Library, tick the boxes you want and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
+- **Email recipients:** set them up in My details, under the signature.
+  - **ORM** and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
+  - **Me:** your own email, sent as *CC*.
+- **Sending:** after publishing, or from the Library, everyone is listed under ORM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
 - **Email template:**
   ```
   Subject: <Name> Timesheet <week ending>
 
-  Hello <ORM / Supervisor name(s)>
+  Hello <first names of the people ticked, e.g. John and Paul>
 
   Please find timesheet attached
 
