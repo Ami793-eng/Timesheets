@@ -24,6 +24,12 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Extended duty:** pick how long. The actual finish and the overtime (rostered finish → new finish) are filled in for you, and an incident number is required.
   - **Comp rest / late start:** pick how much later you started. The finish stays as rostered and the hours are worked out. Then choose **Compensatory Rest** or **Late Start** (with an optional note). Column M shows "Comp rest – start 10:00" or "Late start 08:30 – previous call".
   - **Other times**, **Leave**, or **Not worked**.
+- **Box off a day:** tap **✓ Done – next day** at the bottom of a day.
+  - The app checks the day for anything missing (incident number, reasons, vehicle and so on).
+  - The day folds to one line with a green tick, and the next unfinished day opens.
+  - A progress bar shows "x/7 days done".
+  - Tap a done day to reopen and change it.
+  - Quick fill starts folded away once a timesheet has entries.
 - **15-minute pickers:** every time and hours box scrolls in 15-minute steps.
 - **Overtime:** the Yes/No is set automatically when you started at the rostered time but finished later. OT runs from the rostered finish to the actual finish. It can also be set by hand. An **incident number / reason is required** before you can publish.
 - **Subsistence:** can be claimed on any day, with From, To, Rate, Location/Incident and **Vehicle**. The vehicle is required, and recent vehicles are remembered for quick picking. It goes into the Location & Incident No cell, for example "Galway / INC-901 – Vehicle SL-401".

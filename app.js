@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-10";
+const APP_VERSION = "2026.11.01-11";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -247,7 +247,8 @@ function blankDay(dateIso) {
     subsTo: "",
     subsRate: "",
     subsLocation: "",
-    subsVehicle: ""
+    subsVehicle: "",
+    done: false          // "boxed off" by the user
   };
 }
 
@@ -707,6 +708,7 @@ function renderTimesheet() {
   $("sheetTitle").textContent = `Week ending ${displayDate(sheet.weekEnding)}`;
   $("sheetStatus").textContent = amendLabel(sheet) ? `Draft · ${amendLabel(sheet)}` : "Draft";
   $("sheetStaff").textContent = [p.name || "No name set", p.number ? `#${p.number}` : "", profileBase()].filter(Boolean).join(" · ");
+  renderProgress(sheet);
   $("savedIndicator").textContent = `Saved ${new Date(sheet.updatedAt).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}`;
   renderQuickFill(sheet);
   renderDays(sheet);
@@ -763,6 +765,7 @@ function startTimesheet() {
   ui.selectedDays.clear();
   saveState();
   renderTimesheet();
+  setQuickFillOpen();
 }
 
 /* Quick fill ---------------------------------------------------------- */
@@ -855,9 +858,9 @@ function dayCard(d, i) {
   ].join("");
 
   return `
-  <article class="day ${open ? "day--open" : ""} ${sum.cls}" data-day-card="${i}">
+  <article class="day ${open ? "day--open" : ""} ${d.done ? "day--done" : ""} ${sum.cls}" data-day-card="${i}">
     <button type="button" class="day__head" data-toggle="${i}" aria-expanded="${open}">
-      <span class="day__name">${DAYS[i].name}<small>${esc(displayDate(d.date))}</small></span>
+      <span class="day__name"><span class="day__title">${d.done ? `<span class="day__tick" aria-label="Done">✓</span>` : ""}${DAYS[i].name}</span><small>${esc(displayDate(d.date))}</small></span>
       <span class="day__sum">${esc(sum.text)}</span>
       <span class="day__flags">${flags}</span>
       <span class="day__chev" aria-hidden="true"></span>
@@ -1001,6 +1004,7 @@ function dayEditor(d, i) {
 
     <div class="day__foot">
       <button type="button" class="btn btn--small btn--ghost" data-copy-next="${i}" ${i === 6 ? "disabled" : ""}>Copy to next day</button>
+      <button type="button" class="btn btn--small btn--primary day__done" data-done="${i}" ${d.roster ? "" : "disabled"}>✓ Done${nextOpenDay(currentSheet(), i) >= 0 ? " – next day" : ""}</button>
       <button type="button" class="btn btn--small btn--ghost" data-clear-day="${i}">Clear day</button>
     </div>
   </div>`;
@@ -1123,13 +1127,48 @@ function copyToNext(i) {
   const src = sheet.days[i];
   const dst = sheet.days[i + 1];
   const keep = { date: dst.date };
-  Object.assign(dst, structuredClone(src), keep, { otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
+  Object.assign(dst, structuredClone(src), keep, { done: false, otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
   if (!dst.otAuto) { dst.ot = false; dst.otFrom = ""; dst.otTo = ""; dst.otAuto = true; }
   autoOvertime(dst);
   touch(sheet, `Copied ${DAYS[i].short} → ${DAYS[i + 1].short}`);
   ui.expanded.add(i + 1);
   saveState();
   renderDays(sheet);
+}
+
+// Next day after `i` that hasn't been boxed off yet (or -1).
+function nextOpenDay(sheet, i) {
+  if (!sheet) return -1;
+  for (let k = i + 1; k < 7; k++) if (!sheet.days[k].done) return k;
+  return -1;
+}
+
+// "Box off" a day: check it, fold it to one line and move on to the next one.
+function markDone(i) {
+  const sheet = currentSheet();
+  if (!sheet) return;
+  const d = sheet.days[i];
+  if (!d.roster) return toast("Enter the shift for this day first.", true);
+  const errors = dayErrors(d, i);
+  if (errors.length) return alert("Before marking this day done:\n\n• " + errors.map(e => e.replace(/^\w+: /, "")).join("\n• "));
+  d.done = true;
+  touch(sheet, `${DAYS[i].short} marked done`);
+  ui.expanded.delete(i);
+  const next = nextOpenDay(sheet, i);
+  if (next >= 0) ui.expanded.add(next);
+  saveState();
+  renderDays(sheet);
+  renderProgress(sheet);
+  const target = document.querySelector(`[data-day-card="${next >= 0 ? next : i}"]`);
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  toast(next >= 0 ? `${DAYS[i].name} done. On to ${DAYS[next].name}.` : `${DAYS[i].name} done.`);
+}
+
+function renderProgress(sheet) {
+  const el = $("sheetProgress");
+  if (!el || !sheet) return;
+  const done = sheet.days.filter(d => d.done).length;
+  el.innerHTML = `<span class="progress__bar"><span style="width:${(done / 7) * 100}%"></span></span>${done}/7 days done`;
 }
 
 function clearDay(i) {
@@ -1151,8 +1190,15 @@ function validate(sheet) {
   const p = state.profile;
   if (!p.name) errors.push("Your staff name is missing (My details).");
   if (!p.number) errors.push("Your staff number is missing (My details).");
-  sheet.days.forEach((d, i) => {
-    const n = DAYS[i].name;
+  sheet.days.forEach((d, i) => errors.push(...dayErrors(d, i)));
+  return errors;
+}
+
+// Problems with one day (used by Done and by Publish).
+function dayErrors(d, i) {
+  const errors = [];
+  const n = DAYS[i].name;
+  {
     if (d.roster === "times" && !(isTime(d.rosterFrom) && isTime(d.rosterTo))) errors.push(`${n}: rostered start and finish times are needed.`);
     if (d.roster === "leave" && !d.rosterLeave) errors.push(`${n}: choose the leave type.`);
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
@@ -1180,7 +1226,7 @@ function validate(sheet) {
       if (!d.subsLocation.trim()) errors.push(`${n}: subsistence location / incident is missing.`);
       if (!(d.subsVehicle || "").trim()) errors.push(`${n}: subsistence vehicle is missing.`);
     }
-  });
+  }
   return errors;
 }
 
@@ -1656,12 +1702,18 @@ function searchText(s) {
   ].join(" ").toLowerCase();
 }
 
+function setQuickFillOpen() {
+  const sheet = currentSheet();
+  if (sheet) $("quickFill").open = !sheet.days.some(d => d.roster);
+}
+
 function openSheet(id) {
   state.currentId = id;
   ui.expanded.clear();
   ui.selectedDays.clear();
   saveState();
   showTab("timesheet");
+  setQuickFillOpen();
 }
 
 function reviseSheet(id) {
@@ -1738,7 +1790,7 @@ function importBackup(e) {
 function bind() {
   document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
+    const t = e.target.closest("[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
     if (!t) return;
     const ds = t.dataset;
     if (ds.goto) { e.preventDefault(); if (ds.closeSend !== undefined) $("sendDialog").close("cancel"); showTab(ds.goto); }
@@ -1762,6 +1814,7 @@ function bind() {
       renderQuickFill(currentSheet());
     }
     else if (ds.copyNext !== undefined) copyToNext(Number(ds.copyNext));
+    else if (ds.done !== undefined) markDone(Number(ds.done));
     else if (ds.clearDay !== undefined) clearDay(Number(ds.clearDay));
   });
 

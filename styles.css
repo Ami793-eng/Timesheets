@@ -197,7 +197,7 @@ fieldset.sub .segmented { margin-bottom: 10px; }
 .day.is-leave { border-left-color: var(--leave); }
 .day__head {
   appearance: none; width: 100%; border: 0; background: transparent; color: inherit; font: inherit;
-  display: grid; grid-template-columns: 6.5rem 1fr auto; grid-template-areas: "name sum chev" "name flags chev";
+  display: grid; grid-template-columns: 7.6rem 1fr auto; grid-template-areas: "name sum chev" "name flags chev";
   align-items: center; gap: 2px 10px; padding: 12px 14px; text-align: left; cursor: pointer;
 }
 .day__name { grid-area: name; font-weight: 700; display: flex; flex-direction: column; }
@@ -335,3 +335,20 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
 .steps { padding-left: 1.2rem; line-height: 1.6; }
 .ios-share { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 0 .3rem; }
 @media (display-mode: standalone) { .app-header { padding-top: env(safe-area-inset-top); } }
+
+/* Boxed-off ("done") days */
+.day--done { border-left-color: #2e7d4f; background: var(--surface-2); }
+.day--done:not(.day--open) .day__head { padding-top: 9px; padding-bottom: 9px; }
+.day--done:not(.day--open) .day__sum { color: var(--muted); font-size: .92rem; }
+.day__tick {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; margin-bottom: 2px;
+  border-radius: 50%; background: #2e7d4f; color: #fff; font-size: .75rem; font-weight: 800;
+}
+.day__foot { flex-wrap: wrap; }
+.day__done { margin-left: auto; order: 3; }
+.progress { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: .82rem; color: var(--muted); }
+.progress__bar { flex: 0 0 90px; height: 6px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.progress__bar span { display: block; height: 100%; background: #2e7d4f; transition: width .3s; }
+.day__title { display: inline-flex; align-items: center; gap: 6px; }
+.day__tick { margin-bottom: 0; width: 18px; height: 18px; flex: none; }
+.day--done:not(.day--open) .day__name small { font-size: .74rem; }
