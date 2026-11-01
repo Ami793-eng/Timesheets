@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-11">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-12">
 </head>
 <body>
   <header class="app-header">
@@ -45,6 +45,7 @@
           <label for="weekEnding">Week ending (Sunday)</label>
           <input type="date" id="weekEnding">
           <small class="hint" id="weekEndingHint"></small>
+          <div class="week-roster" id="weekRoster" hidden></div>
         </div>
         <button class="btn btn--primary" id="startBtn">Start timesheet</button>
         <div id="openDrafts"></div>
@@ -204,6 +205,28 @@
           <small class="hint">This preview is what goes into the Employee Signature box on the Excel sheet.</small>
         </div>
 
+        <fieldset class="sub roster-settings">
+          <legend>My roster</legend>
+          <p class="hint">Pick your base roster and a starting week (and which line that week is). New timesheets are then filled in for you: shifts as rostered, rest days boxed off.</p>
+          <div class="field">
+            <label for="pRoster">Base roster</label>
+            <select id="pRoster"></select>
+          </div>
+          <div id="pRosterWrap" hidden>
+            <div class="grid-2">
+              <div class="field">
+                <label for="pRosterStart">Starting week (week commencing Monday)</label>
+                <input type="date" id="pRosterStart">
+              </div>
+              <div class="field">
+                <label for="pRosterLine">That week is roster line</label>
+                <select id="pRosterLine"></select>
+              </div>
+            </div>
+            <div class="roster-preview" id="pRosterPreview"></div>
+          </div>
+        </fieldset>
+
         <fieldset class="sub recipients">
           <legend>Email recipients</legend>
           <p class="hint">Add as many ORMs, DCMs and supervisors as you need. Tick <em>Default</em> on the ones usually sent to; you choose exactly who gets it each time you send. The greeting uses their first name ("Hello John").</p>
@@ -241,7 +264,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-11</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-12</span></p>
       </div>
     </section>
   </main>
@@ -295,6 +318,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
-  <script src="app.js?v=2026.11.01-11"></script>
+  <script src="app.js?v=2026.11.01-12"></script>
 </body>
 </html>

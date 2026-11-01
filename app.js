@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-11";
+const APP_VERSION = "2026.11.01-12";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -84,6 +84,28 @@ const EARLY_REASONS = [
 
 // Why someone started a shift late.
 const LATE_REASONS = ["Compensatory Rest", "Late Start"];
+
+/* Rotating rosters ---------------------------------------------------- */
+// Shift codes used in the roster grids below.
+const ROSTER_SHIFTS = {
+  D: { label: "Day",   start: "07:00", finish: "19:00" },
+  N: { label: "Night", start: "19:00", finish: "07:00" },
+  X: { label: "Road",  start: "07:00", finish: "19:00" },
+  R: { label: "Rest Day" }
+};
+// Each line is one week, Monday → Sunday.
+const ROSTERS = {
+  "neoc-a": {
+    name: "Clinical Hub 16week",
+    station: "NEOC",
+    lines: [
+      "RNNNRRR", "RRRRXXX", "RRDDDRR", "DDRRRDD",
+      "RRXXXRR", "RRRRRNN", "NRDDDRR", "DDRRRDD",
+      "RRNNNRR", "RRRRXXX", "RRDDDRR", "DDRRRDD",
+      "RRXXXRR", "RRRRRNN", "NRDDDRR", "DDRRRDD"
+    ]
+  }
+};
 
 const DECLARATION =
   "I confirm that the hours submitted are accurate and relate to duties undertaken during the stated period.";
@@ -227,6 +249,7 @@ function blankDay(dateIso) {
     rosterLeave: "",
     rosterFrom: "",
     rosterTo: "",
+    rosterLabel: "",     // e.g. "Day" / "Night" / "Road" when filled from the roster
     actual: "same",      // same | early | extended | late | times | leave | none
     actualMins: 0,       // how long early / extended / late, in minutes (15-min steps)
     earlyReason: "",     // why finished early
@@ -351,7 +374,7 @@ function daySummary(d) {
   const c = excelCells(d);
   if (!d.roster) return { text: "Not entered yet", cls: "is-empty" };
   if (d.roster === "rest" && resolvedActual(d).kind === "none") return { text: "Rest Day", cls: "is-rest" };
-  let text = d.roster === "times" ? `${c.rFrom}–${c.rTo}` : c.rFrom;
+  let text = d.roster === "times" ? `${d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : ""}${c.rFrom}–${c.rTo}` : c.rFrom;
   const a = resolvedActual(d);
   if (d.actual === "early" && d.actualMins) {
     text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
@@ -436,6 +459,7 @@ function rosterValue(d) {
 }
 
 function applyRosterValue(d, value, otherStart, otherFinish) {
+  d.rosterLabel = "";
   if (!value) { d.roster = ""; return; }
   if (value === "rest") {
     d.roster = "rest"; d.rosterLeave = ""; d.rosterFrom = ""; d.rosterTo = "";
@@ -484,6 +508,7 @@ function renderProfile() {
   $("pBase").innerHTML = opt("", "— Select —", !p.base) + STATIONS.map(s => opt(s, s, p.base === s)).join("");
   $("pBaseOther").value = p.baseOther;
   $("pBaseOtherWrap").hidden = p.base !== "Other";
+  renderRosterSettings();
   $("pMeEmail").value = p.meEmail || "";
   $("pMeDefault").checked = !!p.meDefault;
   renderContacts();
@@ -493,6 +518,41 @@ function renderProfile() {
   document.querySelector(`input[name="sigMode"][value="${mode}"]`).checked = true;
   setSigMode(mode, { keep: true });
   drawSignatureImage(p.signatureImage);
+}
+
+function renderRosterSettings() {
+  const p = state.profile;
+  $("pRoster").innerHTML = opt("", "No roster (fill in manually)", !p.rosterId) +
+    Object.entries(ROSTERS).map(([id, r]) => opt(id, r.name, p.rosterId === id)).join("");
+  $("pRosterWrap").hidden = !p.rosterId;
+  if (!p.rosterId) return;
+  $("pRosterStart").value = p.rosterAnchor || mondayOf(isoLocal(new Date()));
+  $("pRosterLine").innerHTML = opt("", "— Select —", !p.rosterAnchorLine) +
+    ROSTERS[p.rosterId].lines.map((l, k) => opt(String(k + 1), `Line ${k + 1}  (${describeCodes(l)})`, p.rosterAnchorLine === k + 1)).join("");
+  const thisWE = isoLocal(nextSunday());
+  const next = new Date(parseIso(thisWE)); next.setDate(next.getDate() + 7);
+  const show = we => { const rw = rosterWeek(we); return rw ? `Line ${rw.line}: ${describeRosterWeek(rw)}` : ""; };
+  $("pRosterPreview").innerHTML = p.rosterAnchorLine
+    ? `<div><strong>This week</strong> ${esc(show(thisWE))}</div><div><strong>Next week</strong> ${esc(show(isoLocal(next)))}</div>`
+    : `<span class="muted">Pick the starting week and its line.</span>`;
+}
+
+function describeCodes(line) {
+  return line.split("").map(c => c === "R" ? "–" : c === "X" ? "Rd" : c).join(" ");
+}
+
+function onRosterChange() {
+  const p = state.profile;
+  p.rosterId = $("pRoster").value;
+  if (!p.rosterId) { p.rosterAnchor = ""; p.rosterAnchorLine = 0; }
+  else {
+    const start = $("pRosterStart").value || mondayOf(isoLocal(new Date()));
+    if (parseIso(start).getDay() !== 1) toast(`Using the Monday of that week: ${displayDate(mondayOf(start))}.`);
+    p.rosterAnchor = mondayOf(start);
+    p.rosterAnchorLine = Number($("pRosterLine").value) || 0;
+  }
+  saveState();
+  renderRosterSettings();
 }
 
 function saveProfile() {
@@ -706,7 +766,7 @@ function renderTimesheet() {
 
   const p = state.profile;
   $("sheetTitle").textContent = `Week ending ${displayDate(sheet.weekEnding)}`;
-  $("sheetStatus").textContent = amendLabel(sheet) ? `Draft · ${amendLabel(sheet)}` : "Draft";
+  $("sheetStatus").textContent = ["Draft", amendLabel(sheet), sheet.rosterLine ? `Roster line ${sheet.rosterLine}` : ""].filter(Boolean).join(" · ");
   $("sheetStaff").textContent = [p.name || "No name set", p.number ? `#${p.number}` : "", profileBase()].filter(Boolean).join(" · ");
   renderProgress(sheet);
   $("savedIndicator").textContent = `Saved ${new Date(sheet.updatedAt).toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}`;
@@ -742,6 +802,61 @@ function updateWeekHint() {
   } else {
     hint.textContent = `Monday ${displayDate(weekDates(v)[0])} to Sunday ${displayDate(v)}`;
   }
+  const rw = rosterWeek(isoLocal(nextSunday(d)));
+  $("weekRoster").innerHTML = rw
+    ? `<strong>Roster line ${rw.line}</strong> · ${esc(describeRosterWeek(rw))}<br><span class="muted">Shifts and rest days will be filled in for you.</span>`
+    : "";
+  $("weekRoster").hidden = !rw;
+}
+
+function mondayOf(iso) {
+  const d = parseIso(iso);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return isoLocal(d);
+}
+
+// Which roster line (1-based) applies to the week ending `weekEndingIso`, or 0 if no roster set.
+function rosterLineFor(weekEndingIso) {
+  const p = state.profile;
+  const r = ROSTERS[p.rosterId];
+  if (!r || !p.rosterAnchor || !p.rosterAnchorLine) return 0;
+  const mon = parseIso(weekDates(weekEndingIso)[0]);
+  const anchor = parseIso(mondayOf(p.rosterAnchor));
+  const weeks = Math.round((Date.UTC(mon.getFullYear(), mon.getMonth(), mon.getDate()) - Date.UTC(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())) / (7 * 864e5));
+  const n = r.lines.length;
+  return (((p.rosterAnchorLine - 1 + weeks) % n) + n) % n + 1;
+}
+
+function rosterWeek(weekEndingIso) {
+  const line = rosterLineFor(weekEndingIso);
+  if (!line) return null;
+  const r = ROSTERS[state.profile.rosterId];
+  return { line, roster: r, codes: r.lines[line - 1].split("") };
+}
+
+function describeRosterWeek(rw) {
+  return rw.codes.map((c, i) => `${DAYS[i].short} ${c === "R" ? "Rest" : ROSTER_SHIFTS[c].label}`).join(" · ");
+}
+
+// Pre-fill a new timesheet from the roster: shifts "worked as rostered", rest days boxed off.
+function applyRoster(sheet) {
+  const rw = rosterWeek(sheet.weekEnding);
+  if (!rw) return false;
+  sheet.rosterLine = rw.line;
+  sheet.rosterName = rw.roster.name;
+  rw.codes.forEach((code, i) => {
+    const d = sheet.days[i];
+    const sh = ROSTER_SHIFTS[code];
+    d.station = rw.roster.station;
+    d.rosterLabel = sh.label;
+    if (code === "R") {
+      d.roster = "rest"; d.actual = "none"; d.done = true;
+    } else {
+      d.roster = "times"; d.rosterFrom = sh.start; d.rosterTo = sh.finish; d.actual = "same";
+    }
+  });
+  sheet.history.push({ action: `Filled from ${rw.roster.name}, line ${rw.line}`, at: new Date().toISOString() });
+  return true;
 }
 
 function startTimesheet() {
@@ -758,11 +873,17 @@ function startTimesheet() {
     const sheet = newSheet(we);
     const base = state.profile.base;
     if (base) sheet.days.forEach(d => { d.station = base; });
+    if (applyRoster(sheet)) {
+      const firstShift = sheet.days.findIndex(d => !d.done);
+      if (firstShift >= 0) ui.pendingOpen = firstShift;
+    }
     state.sheets.push(sheet);
     state.currentId = sheet.id;
   }
   ui.expanded.clear();
+  if (ui.pendingOpen !== undefined) { ui.expanded.add(ui.pendingOpen); delete ui.pendingOpen; }
   ui.selectedDays.clear();
+  ui.showRest = false;
   saveState();
   renderTimesheet();
   setQuickFillOpen();
@@ -830,8 +951,21 @@ function applyQuickFill() {
 
 /* Day cards ---------------------------------------------------------- */
 
+// A plain rest day that's boxed off: kept out of the way unless the user asks.
+function isQuietRest(d, i) {
+  return d.roster === "rest" && d.done && resolvedActual(d).kind === "none" && !d.ot && !d.subs && !ui.expanded.has(i);
+}
+
 function renderDays(sheet) {
-  $("dayList").innerHTML = sheet.days.map((d, i) => dayCard(d, i)).join("");
+  const quiet = sheet.days.map((d, i) => isQuietRest(d, i) ? i : -1).filter(i => i >= 0);
+  const hide = quiet.length && !ui.showRest;
+  const cards = sheet.days.map((d, i) => hide && quiet.includes(i) ? "" : dayCard(d, i)).join("");
+  const strip = quiet.length ? `
+    <div class="rest-strip">
+      <span class="rest-strip__label"><span class="day__tick" aria-hidden="true">✓</span> Rest days: ${quiet.map(i => DAYS[i].short).join(", ")}</span>
+      <button type="button" class="link-btn" data-show-rest>${ui.showRest ? "Hide rest days" : "Worked a rest day / swap?"}</button>
+    </div>` : "";
+  $("dayList").innerHTML = cards + strip;
 }
 
 function rerenderDay(i) {
@@ -1790,7 +1924,7 @@ function importBackup(e) {
 function bind() {
   document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
+    const t = e.target.closest("[data-show-rest],[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
     if (!t) return;
     const ds = t.dataset;
     if (ds.goto) { e.preventDefault(); if (ds.closeSend !== undefined) $("sendDialog").close("cancel"); showTab(ds.goto); }
@@ -1815,6 +1949,7 @@ function bind() {
     }
     else if (ds.copyNext !== undefined) copyToNext(Number(ds.copyNext));
     else if (ds.done !== undefined) markDone(Number(ds.done));
+    else if (ds.showRest !== undefined) { ui.showRest = !ui.showRest; renderDays(currentSheet()); }
     else if (ds.clearDay !== undefined) clearDay(Number(ds.clearDay));
   });
 
@@ -1848,6 +1983,12 @@ function bind() {
   $("pBase").addEventListener("change", () => { $("pBaseOtherWrap").hidden = $("pBase").value !== "Other"; });
   $("pName").addEventListener("input", () => { if (sig.mode === "type" && !$("pSigText").value.trim()) renderTypedSig(); });
   $("saveProfileBtn").addEventListener("click", saveProfile);
+  $("pRoster").addEventListener("change", () => {
+    if (!$("pRoster").value) { $("pRosterLine").value = ""; }
+    onRosterChange();
+  });
+  $("pRosterLine").addEventListener("change", onRosterChange);
+  $("pRosterStart").addEventListener("change", onRosterChange);
   ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);

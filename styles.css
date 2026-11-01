@@ -352,3 +352,14 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
 .day__title { display: inline-flex; align-items: center; gap: 6px; }
 .day__tick { margin-bottom: 0; width: 18px; height: 18px; flex: none; }
 .day--done:not(.day--open) .day__name small { font-size: .74rem; }
+
+/* Roster */
+.week-roster { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--primary-soft); font-size: .88rem; }
+.roster-preview { font-size: .85rem; display: grid; gap: 4px; }
+.roster-preview strong { margin-right: .3rem; }
+.rest-strip {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px;
+  padding: 10px 14px; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface-2);
+  font-size: .9rem; color: var(--muted);
+}
+.rest-strip__label { display: inline-flex; align-items: center; gap: 6px; }
