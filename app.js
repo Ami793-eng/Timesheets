@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-13";
+const APP_VERSION = "2026.11.01-14";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1396,21 +1396,23 @@ async function publish() {
   sheet.declaration = DECLARATION;
 
   try {
-    const file = await buildWorkbookFile(sheet);
-    downloadFile(file);
     sheet.status = "published";
     sheet.publishedAt = new Date().toISOString();
+    const files = await buildFiles(sheet, { pdf: true, xlsx: true });
+    downloadFiles(files);
     touch(sheet, amendLabel(sheet) ? `Published (${amendLabel(sheet)})` : "Published");
     state.currentId = null;
     ui.lastPublishedId = sheet.id;
     $("declaration").checked = false;
     saveState();
     renderTimesheet();
-    $("publishedText").textContent = `${file.name} has been downloaded and saved to your library.`;
+    $("publishedText").textContent = `${files.map(f => f.name).join(" and ")} ${files.length > 1 ? "have" : "has"} been downloaded and saved to your library.`;
     $("publishedDialog").showModal();
   } catch (err) {
     console.error(err);
-    alert("The Excel file couldn't be created:\n\n" + err.message);
+    sheet.status = "draft";        // nothing was produced, so keep it as a draft
+    sheet.publishedAt = "";
+    alert("The timesheet files couldn't be created:\n\n" + err.message);
   }
 }
 
@@ -1419,12 +1421,16 @@ async function previewDownload() {
   if (!sheet) return;
   const p = state.profile;
   const snapshot = { ...structuredClone(sheet), staff: { name: p.name, number: p.number, base: profileBase(), signatureText: p.signatureText, signatureImage: p.signatureImage } };
+  const win = window.open("", "_blank");
   try {
-    const file = await buildWorkbookFile(snapshot, "_DRAFT");
-    downloadFile(file);
+    const file = await buildPdfFile(snapshot, "_DRAFT");
+    const url = URL.createObjectURL(file);
+    if (win) win.location.href = url; else downloadFile(file);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (err) {
+    win?.close();
     console.error(err);
-    alert("The Excel file couldn't be created:\n\n" + err.message);
+    alert("The preview couldn't be created:\n\n" + err.message);
   }
 }
 
@@ -1537,6 +1543,160 @@ function buildDefaultLayout(wb) {
   ws.getCell("A26").value = DECLARATION;
   ws.getCell("A26").font = { italic: true, size: 9 };
   return ws;
+}
+
+/* PDF copy ------------------------------------------------------------ */
+// A4 landscape PDF laid out like the NAS timesheet template.
+
+let logoCache; // data URL | null
+async function templateLogo() {
+  if (logoCache !== undefined) return logoCache;
+  logoCache = null;
+  try {
+    const tpl = await loadTemplate();
+    if (tpl && typeof ExcelJS !== "undefined") {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(tpl);
+      const img = (wb.model.media || []).find(m => m.type === "image" && /png|jpe?g/.test(m.extension));
+      if (img) {
+        let bin = "";
+        const bytes = new Uint8Array(img.buffer);
+        for (let k = 0; k < bytes.length; k++) bin += String.fromCharCode(bytes[k]);
+        logoCache = `data:image/${img.extension === "jpg" ? "jpeg" : img.extension};base64,${btoa(bin)}`;
+      }
+    }
+  } catch (err) { console.warn("No logo for PDF:", err); }
+  return logoCache;
+}
+
+async function buildPdfFile(sheet, suffix = "") {
+  if (!window.jspdf) throw new Error("The PDF library didn't load. Check lib/jspdf.umd.min.js is present.");
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const staff = sheet.staff || { name: state.profile.name, number: state.profile.number, base: profileBase(), signatureText: state.profile.signatureText, signatureImage: state.profile.signatureImage };
+  const GREEN = [51, 153, 102], RED = [230, 50, 40], LIME = [146, 208, 80], GREY = [90, 90, 90], LIGHT = [242, 242, 242];
+  const M = 10;
+
+  const box = (x, y, w, h, { fill, text, bold, size = 8, color = [0, 0, 0], align = "center", wrap = false } = {}) => {
+    if (fill) { doc.setFillColor(...fill); doc.rect(x, y, w, h, "FD"); } else doc.rect(x, y, w, h);
+    if (text === undefined || text === null || text === "") return;
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    let lines = wrap ? doc.splitTextToSize(String(text), w - 2) : [String(text)];
+    while (wrap && lines.length * size * 0.4 > h - 1 && size > 5) { size -= 0.5; doc.setFontSize(size); lines = doc.splitTextToSize(String(text), w - 2); }
+    const lh = size * 0.4;
+    const ty = y + h / 2 - ((lines.length - 1) * lh) / 2 + size * 0.13;
+    const tx = align === "left" ? x + 1.5 : x + w / 2;
+    doc.text(lines, tx, ty, { align: align === "left" ? "left" : "center" });
+    doc.setTextColor(0, 0, 0);
+  };
+
+  doc.setDrawColor(40, 40, 40);
+  doc.setLineWidth(0.25);
+
+  // Header
+  const logo = await templateLogo();
+  if (logo) doc.addImage(logo, "PNG", M, 6, 20, 17);
+  box(40, 8, 30, 7, { fill: GREEN, text: "Name:", bold: true, color: [255, 255, 255] });
+  box(70, 8, 72, 7, { text: staff.name, bold: true, size: 9 });
+  box(160, 8, 40, 7, { fill: GREEN, text: "Personnel Number:", bold: true, color: [255, 255, 255] });
+  box(200, 8, 50, 7, { text: staff.number, size: 9 });
+  box(40, 17, 30, 7, { fill: GREEN, text: "Date Week Ending:", bold: true, color: [255, 255, 255], size: 7.5 });
+  box(70, 17, 72, 7, { text: displayDate(sheet.weekEnding), size: 9 });
+  box(160, 17, 40, 7, { fill: GREEN, text: "Station:", bold: true, color: [255, 255, 255] });
+  box(200, 17, 50, 7, { text: staff.base, bold: true, size: 9 });
+  const amended = amendLabel(sheet);
+  if (amended) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...RED);
+    doc.text(amended, 297 - M, 14, { align: "right" }); doc.setTextColor(0, 0, 0);
+  }
+
+  // Table columns
+  const cols = [
+    ["Day", 22], ["Date", 18], ["", 14], ["From", 14], ["To", 14], ["Station Worked from", 26],
+    ["From", 13], ["To", 13], ["5/10 hr", 13], ["Location & Incident No", 38],
+    ["From", 13], ["To", 13], ["Reason for O/T Incident No.", 66]
+  ];
+  const xs = []; let cx = M; cols.forEach(([, w]) => { xs.push(cx); cx += w; });
+  let y = 28;
+  // Group header row
+  box(xs[0], y, cols[0][1] + cols[1][1] + cols[2][1], 6, { fill: GREEN });
+  box(xs[3], y, cols[3][1] + cols[4][1], 6, { fill: GREEN, text: "Time", bold: true, color: [255, 255, 255] });
+  box(xs[5], y, cols[5][1], 6, { fill: GREEN });
+  box(xs[6], y, 13 * 3 + 38, 6, { fill: RED, text: "Subsistence", bold: true, color: [255, 255, 255] });
+  box(xs[10], y, 13 * 2 + 66, 6, { fill: LIME, text: "Overtime Hours Worked", bold: true });
+  y += 6;
+  cols.forEach(([t, w], k) => box(xs[k], y, w, 9, {
+    fill: k >= 6 && k <= 9 ? RED : k >= 10 ? LIME : GREEN, text: t, bold: true, wrap: true, size: 7.5,
+    color: k >= 10 ? [0, 0, 0] : [255, 255, 255]
+  }));
+  y += 9;
+
+  const RH = 8;
+  sheet.days.forEach((d, i) => {
+    const c = excelCells(d);
+    const worked = d.roster === "times" || resolvedActual(d).kind === "times";
+    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim() ? `Vehicle ${(d.subsVehicle || "").trim()}` : ""].filter(Boolean).join(" – ");
+    const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate, where] : ["", "", "", ""];
+    const [yy, mm, dd] = d.date.split("-");
+    box(xs[0], y, cols[0][1], RH * 2, { fill: GREEN, text: DAYS[i].name, bold: true, color: [255, 255, 255] });
+    box(xs[1], y, cols[1][1], RH * 2, { text: `${dd}/${mm}/${yy.slice(2)}` });
+    box(xs[2], y, cols[2][1], RH, { fill: LIGHT, text: "Roster", bold: true, size: 7 });
+    box(xs[2], y + RH, cols[2][1], RH, { fill: LIGHT, text: "Actual", bold: true, size: 7 });
+    box(xs[3], y, cols[3][1], RH, { text: c.rFrom, wrap: true, size: 7.5 });
+    box(xs[4], y, cols[4][1], RH, { text: c.rTo, size: 7.5 });
+    box(xs[3], y + RH, cols[3][1], RH, { text: c.aFrom, wrap: true, size: 7.5 });
+    box(xs[4], y + RH, cols[4][1], RH, { text: c.aTo, size: 7.5 });
+    box(xs[5], y, cols[5][1], RH * 2, { text: worked ? (d.station || staff.base) : "", size: 7.5 });
+    subs.forEach((v, k) => box(xs[6 + k], y, cols[6 + k][1], RH * 2, { text: v, wrap: k === 3, size: 7 }));
+    box(xs[10], y, cols[10][1], RH * 2, { text: c.otFrom, size: 7.5 });
+    box(xs[11], y, cols[11][1], RH * 2, { text: c.otTo, size: 7.5 });
+    box(xs[12], y, cols[12][1], RH * 2, { text: c.otReason, wrap: true, size: 7, align: "left" });
+    y += RH * 2;
+  });
+
+  // Signatures
+  y += 5;
+  box(M, y, 40, 11, { fill: GREEN, text: "Employee Signature:", bold: true, color: [255, 255, 255] });
+  box(M + 40, y, 80, 11);
+  if (staff.signatureImage) {
+    const { w, h } = pngSize(staff.signatureImage);
+    const hh = 9, ww = Math.min(76, hh * ((w / h) || 3.75));
+    doc.addImage(staff.signatureImage, "PNG", M + 42, y + 1, ww, hh);
+  } else if (staff.signatureText || staff.name) {
+    doc.setFont("times", "italic"); doc.setFontSize(14);
+    doc.text(staff.signatureText || staff.name, M + 42, y + 7.5);
+  }
+  box(160, y, 45, 11, { fill: GREEN, text: "Line Manager Signature:", bold: true, color: [255, 255, 255] });
+  box(205, y, 82, 11);
+
+  // Declaration + footer
+  y += 17;
+  doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(...GREY);
+  doc.text(sheet.declaration || DECLARATION, M, y);
+  const when = sheet.publishedAt ? new Date(sheet.publishedAt) : new Date();
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+  doc.text(`${sheet.status === "published" ? "Published" : "DRAFT – not submitted"} ${when.toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" })}${amended ? ` · ${amended}` : ""}${sheet.rosterLine ? ` · Roster line ${sheet.rosterLine}` : ""} · Timesheet Hub`, M, 203);
+  doc.setTextColor(0, 0, 0);
+
+  const blob = doc.output("blob");
+  return new File([blob], fileName(sheet, suffix).replace(/\.xlsx$/, ".pdf"), { type: "application/pdf" });
+}
+
+// Which files to attach/download, from the user's last choice (default: both).
+function chosenFormats() {
+  const p = state.profile;
+  return { pdf: p.attachPdf !== false, xlsx: p.attachXlsx !== false };
+}
+async function buildFiles(sheet, formats = chosenFormats(), suffix = "") {
+  const files = [];
+  if (formats.pdf) files.push(await buildPdfFile(sheet, suffix));
+  if (formats.xlsx) files.push(await buildWorkbookFile(sheet, suffix));
+  return files;
+}
+function downloadFiles(files) {
+  files.forEach((f, k) => setTimeout(() => downloadFile(f), k * 600));
 }
 
 // Read width/height from a PNG data URL's header (no async image load needed).
@@ -1688,6 +1848,7 @@ function renderSendPreview() {
   $("sendPreview").innerHTML = `
     ${line("To:", rec.to)}${line("CC:", rec.cc)}
     <div><span class="k">Subject:</span> ${esc(subject)}</div>
+    <div><span class="k">Attach:</span> ${[$("sendPdf").checked ? "PDF" : "", $("sendXlsx").checked ? "Excel" : ""].filter(Boolean).join(" + ") || "<em>nothing ticked</em>"}</div>
     <pre>${esc(body)}</pre>`;
 }
 
@@ -1732,6 +1893,9 @@ function openSendDialog(id) {
   $("sendLog").innerHTML = sends.length ? `
     <div class="send-log"><strong>Previously sent</strong>
       <ul>${sends.slice().reverse().map(r => `<li>${esc(sendLine(r))}</li>`).join("")}</ul></div>` : "";
+  const fm = chosenFormats();
+  $("sendPdf").checked = fm.pdf;
+  $("sendXlsx").checked = fm.xlsx;
   renderSendPreview();
   $("sendDialog").showModal();
 }
@@ -1750,7 +1914,7 @@ function recordSend(sheet, rec) {
   sheet.sends = sheet.sends || [];
   sheet.sends.push(rec);
   const fmt = arr => arr.map(r => `${r.role === "me" ? "Me" : `${r.name || r.label} [${r.label}]`} <${r.email}>`).join(", ");
-  touch(sheet, `Sent by email to ${fmt(rec.to) || "—"}${rec.cc.length ? `; CC ${fmt(rec.cc)}` : ""}${rec.method === "share" ? " (via share)" : ""}`);
+  touch(sheet, `Sent by email to ${fmt(rec.to) || "—"}${rec.cc.length ? `; CC ${fmt(rec.cc)}` : ""}${rec.files?.length ? ` · attached ${rec.files.map(f => f.endsWith(".pdf") ? "PDF" : "Excel").join(" + ")}` : ""}${rec.method === "share" ? " (via share)" : ""}`);
   saveState();
   renderLibrary();
 }
@@ -1758,8 +1922,11 @@ function recordSend(sheet, rec) {
 async function sendSheet(method) {
   const sheet = state.sheets.find(s => s.id === ui.sendId);
   if (!sheet) return;
-  const rec = { ...chosenRecipients(), at: new Date().toISOString(), method };
-  const file = await buildWorkbookFile(sheet);
+  const formats = { pdf: $("sendPdf").checked, xlsx: $("sendXlsx").checked };
+  state.profile.attachPdf = formats.pdf;
+  state.profile.attachXlsx = formats.xlsx;
+  const files = await buildFiles(sheet, formats);
+  const rec = { ...chosenRecipients(), at: new Date().toISOString(), method, files: files.map(f => f.name) };
   const { subject, body } = emailText(sheet, rec);
   const toList = rec.to.map(r => r.email);
   const ccList = rec.cc.map(r => r.email);
@@ -1768,7 +1935,7 @@ async function sendSheet(method) {
     const addresses = [...toList, ...ccList].join("; ");
     try { if (addresses) await navigator.clipboard.writeText(addresses); } catch { /* clipboard not available */ }
     try {
-      await navigator.share({ files: [file], title: subject, text: body });
+      await navigator.share({ files, title: subject, text: body });
     } catch (err) {
       if (err.name === "AbortError") return toast("Not sent.");
       throw err;
@@ -1777,14 +1944,14 @@ async function sendSheet(method) {
     return toast(addresses ? "Shared. Addresses were copied — paste them into the To box." : "Shared.");
   }
 
-  downloadFile(file);
+  downloadFiles(files);
   const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(body)}`];
   if (ccList.length) params.unshift(`cc=${ccList.map(encodeURIComponent).join(",")}`);
   recordSend(sheet, rec);
   const url = `mailto:${toList.map(encodeURIComponent).join(",")}?${params.join("&")}`;
   console.info("Opening email:", url);
-  setTimeout(() => { window.location.href = url; }, 300);
-  toast(`Email opened · logged ${fmtWhen(rec.at)}`);
+  setTimeout(() => { window.location.href = url; }, 300 + files.length * 600);
+  toast(`Email opened — attach ${files.map(f => f.name.endsWith(".pdf") ? "the PDF" : "the Excel file").join(" and ")} from Downloads.`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1826,7 +1993,8 @@ function renderLibrary() {
           <button class="btn btn--primary btn--small" data-open="${esc(s.id)}">Continue</button>
           <button class="btn btn--danger-ghost btn--small" data-delete="${esc(s.id)}">Delete</button>` : `
           <button class="btn btn--primary btn--small" data-share="${esc(s.id)}">Email</button>
-          <button class="btn btn--small" data-download="${esc(s.id)}">Download</button>
+          <button class="btn btn--small" data-download="${esc(s.id)}" data-format="pdf">PDF</button>
+          <button class="btn btn--small" data-download="${esc(s.id)}" data-format="xlsx">Excel</button>
           <button class="btn btn--small" data-revise="${esc(s.id)}">Revise</button>
           <button class="btn btn--danger-ghost btn--small" data-delete="${esc(s.id)}">Delete</button>`}
       </div>
@@ -1941,7 +2109,7 @@ function bind() {
     else if (ds.share) openSendDialog(ds.share);
     else if (ds.download) {
       const s = state.sheets.find(x => x.id === ds.download);
-      buildWorkbookFile(s).then(downloadFile).catch(err => alert(err.message));
+      (ds.format === "pdf" ? buildPdfFile(s) : buildWorkbookFile(s)).then(downloadFile).catch(err => alert(err.message));
     }
     else if (ds.revise) reviseSheet(ds.revise);
     else if (ds.delete) deleteSheet(ds.delete);
@@ -2015,14 +2183,19 @@ function bind() {
     const v = $("publishedDialog").returnValue;
     const id = ui.lastPublishedId;
     if (v === "email") openSendDialog(id);
-    if (v === "download") buildWorkbookFile(state.sheets.find(s => s.id === id)).then(downloadFile);
+    if (v === "download") buildFiles(state.sheets.find(s => s.id === id), { pdf: true, xlsx: true }).then(downloadFiles);
   });
 
   $("sendBoxes").addEventListener("change", renderSendPreview);
+  $("sendFiles").addEventListener("change", renderSendPreview);
 
   $("sendForm").addEventListener("submit", e => {
     const method = e.submitter?.value;
     if (method !== "mail" && method !== "share") return; // cancel
+    if (!$("sendPdf").checked && !$("sendXlsx").checked) {
+      e.preventDefault();
+      return toast("Tick PDF and/or Excel to attach.", true);
+    }
     const { to, cc } = chosenRecipients();
     if (!to.length && !cc.length) {
       e.preventDefault();

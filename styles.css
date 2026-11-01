@@ -363,3 +363,6 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
   font-size: .9rem; color: var(--muted);
 }
 .rest-strip__label { display: inline-flex; align-items: center; gap: 6px; }
+.send-files { display: flex; align-items: center; gap: 14px; margin: 4px 0 10px; }
+.send-files label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.send-files input { width: 20px; height: 20px; accent-color: var(--primary); }

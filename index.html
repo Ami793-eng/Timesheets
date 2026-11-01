@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-13">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-14">
 </head>
 <body>
   <header class="app-header">
@@ -119,7 +119,7 @@
           </label>
           <div class="actions">
             <button class="btn btn--primary" id="publishBtn">Publish &amp; download Excel</button>
-            <button class="btn" id="previewBtn">Download preview</button>
+            <button class="btn" id="previewBtn">Preview PDF</button>
             <button class="btn btn--ghost" id="closeBtn">Close (keeps draft)</button>
             <button class="btn btn--danger-ghost" id="discardBtn">Delete draft</button>
           </div>
@@ -269,7 +269,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-13</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-14</span></p>
       </div>
     </section>
   </main>
@@ -278,7 +278,7 @@
   <dialog id="publishedDialog">
     <form method="dialog" class="dialog">
       <h3>Timesheet published</h3>
-      <p id="publishedText">The Excel file has been downloaded and saved to your library.</p>
+      <p id="publishedText">The PDF and Excel files have been downloaded and saved to your library.</p>
       <div class="actions">
         <button class="btn btn--primary" value="email">Email it now</button>
         <button class="btn" value="download">Download again</button>
@@ -293,6 +293,11 @@
       <h3>Email timesheet</h3>
       <p class="muted" id="sendWhat"></p>
       <div class="send-boxes" id="sendBoxes"></div>
+      <div class="send-files" id="sendFiles">
+        <span class="send-group__title">Attach</span>
+        <label><input type="checkbox" id="sendPdf" checked> PDF</label>
+        <label><input type="checkbox" id="sendXlsx" checked> Excel</label>
+      </div>
       <div class="email-preview" id="sendPreview" aria-live="polite"></div>
       <p class="hint" id="sendHow"></p>
       <div class="actions">
@@ -323,6 +328,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
-  <script src="app.js?v=2026.11.01-13"></script>
+  <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
+  <script src="app.js?v=2026.11.01-14"></script>
 </body>
 </html>

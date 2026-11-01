@@ -48,6 +48,8 @@ Staff fill in their week (they can save it and come back during the week), publi
   - Shift Swap, which takes an optional note
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
+- **PDF copy:** publishing creates a **PDF** as well as the Excel file. The PDF uses the NAS timesheet layout: logo, header, roster and actual rows, station, subsistence, overtime, signature and declaration. **Preview PDF** on a draft lets you check it first, and the Library has **PDF** and **Excel** buttons.
+- **Attachments:** the send box has **Attach: ☑ PDF ☑ Excel**, and your last choice is remembered. On phones, *Share file* attaches the ticked files directly. *Open email* downloads them for you to attach, because browsers can't add attachments to an email draft themselves.
 - **Email recipients:** set them up in My details, under the signature.
   - **ORM** (Operational Resource Manager), **DCM** (Duty Control Manager) and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
   - **Me:** your own email, sent as *CC*.
@@ -156,6 +158,7 @@ Then open http://localhost:8000.
 | `app.js` | All behaviour: saving, shift rules, overtime, Excel export, library |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Add to Home Screen, app icon and offline support |
 | `lib/exceljs.min.js` | Excel library (ExcelJS 4.4.0, MIT licence), bundled so there's no CDN dependency |
+| `lib/jspdf.umd.min.js` | PDF library (jsPDF 2.5.2, MIT licence) |
 | `template.xlsx` | The NAS timesheet template the app fills in |
 | `fonts/` | Handwriting fonts for typed signatures (open licences, see `fonts/LICENSES.txt`) |
 
