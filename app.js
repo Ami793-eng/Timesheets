@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-9";
+const APP_VERSION = "2026.11.01-10";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -81,6 +81,9 @@ const EARLY_REASONS = [
   "Force Majeure – Family Emergency",
   "Other"
 ];
+
+// Why someone started a shift late.
+const LATE_REASONS = ["Compensatory Rest", "Late Start"];
 
 const DECLARATION =
   "I confirm that the hours submitted are accurate and relate to duties undertaken during the stated period.";
@@ -224,10 +227,12 @@ function blankDay(dateIso) {
     rosterLeave: "",
     rosterFrom: "",
     rosterTo: "",
-    actual: "same",      // same | early | extended | times | leave | none
-    actualMins: 0,       // how long early / extended, in minutes (15-min steps)
+    actual: "same",      // same | early | extended | late | times | leave | none
+    actualMins: 0,       // how long early / extended / late, in minutes (15-min steps)
     earlyReason: "",     // why finished early
     earlyNote: "",       // free text when reason is "Other"
+    lateReason: "",      // why started late
+    lateNote: "",
     actualLeave: "",
     actualFrom: "",
     actualTo: "",
@@ -241,7 +246,8 @@ function blankDay(dateIso) {
     subsFrom: "",
     subsTo: "",
     subsRate: "",
-    subsLocation: ""
+    subsLocation: "",
+    subsVehicle: ""
   };
 }
 
@@ -273,6 +279,10 @@ function resolvedActual(d) {
     const mins = Number(d.actualMins) || 0;
     const to = isTime(d.rosterTo) ? fromMin(toMin(d.rosterTo) + (d.actual === "early" ? -mins : mins)) : "";
     return { kind: "times", from: d.rosterFrom, to };
+  }
+  if (d.actual === "late" && roster === "times") {
+    const from = isTime(d.rosterFrom) ? fromMin(toMin(d.rosterFrom) + (Number(d.actualMins) || 0)) : "";
+    return { kind: "times", from, to: d.rosterTo };
   }
   if (d.actual === "times") return { kind: "times", from: d.actualFrom, to: d.actualTo };
   if (d.actual === "leave") return { kind: "leave", label: d.actualLeave };
@@ -322,6 +332,12 @@ function excelCells(d) {
     const note = `Finished early ${c.aTo} – ${why}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
+  if (d.actual === "late" && d.roster === "times" && d.lateReason) {
+    const note = d.lateReason === "Compensatory Rest"
+      ? `Comp rest – start ${c.aFrom}`
+      : `Late start ${c.aFrom}${d.lateNote.trim() ? ` – ${d.lateNote.trim()}` : ""}`;
+    c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
+  }
   const isSwap = d.rosterLeave === "Shift Swap" || d.actualLeave === "Shift Swap";
   if (isSwap && d.swapNote.trim()) {
     const note = `Shift Swap: ${d.swapNote.trim()}`;
@@ -340,8 +356,10 @@ function daySummary(d) {
     text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
   } else if (d.actual === "extended" && d.actualMins) {
     text += ` · extended to ${a.to} (+${fmtDur(d.actualMins)})`;
-  } else if (d.actual === "early" || d.actual === "extended") {
-    text += ` · ${d.actual === "early" ? "finished early" : "extended"} – how long?`;
+  } else if (d.actual === "late" && d.actualMins) {
+    text += ` · started ${a.from} (${d.lateReason === "Compensatory Rest" ? "comp rest" : "late start"}, ${fmtDur(d.actualMins)})`;
+  } else if (["early", "extended", "late"].includes(d.actual)) {
+    text += ` · ${{ early: "finished early", extended: "extended", late: "comp rest / late start" }[d.actual]} – how long?`;
   } else if (d.actual !== "same") {
     if (a.kind === "times") text += ` · actual ${a.from}–${a.to}`;
     else if (a.kind === "leave") text += ` · actual: ${a.label}`;
@@ -860,6 +878,7 @@ function dayEditor(d, i) {
     isTimes ? opt("same", "Finished as rostered", d.actual === "same") : "",
     isTimes ? opt("early", "Finished early", d.actual === "early") : "",
     isTimes ? opt("extended", "Extended duty (finished late)", d.actual === "extended") : "",
+    isTimes ? opt("late", "Comp rest / late start", d.actual === "late") : "",
     d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
     opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
     opt("leave", "Leave / other", d.actual === "leave"),
@@ -892,12 +911,17 @@ function dayEditor(d, i) {
       <select data-f="actual" data-i="${i}">${actualOpts}</select>
     </div>` : ""}
 
-    ${isTimes && (d.actual === "early" || d.actual === "extended") ? `
+    ${isTimes && ["early", "extended", "late"].includes(d.actual) ? `
     <div class="grid-2">
       <div class="field">
-        <label>${d.actual === "early" ? "Finished early by" : "Extended by"}</label>
-        <select data-f="actualMins" data-i="${i}" class="${d.actualMins ? "" : "needs"}">${durOptions(d.actualMins, d.actual === "early" ? Math.max(15, shiftLen - 15) : 12 * 60)}</select>
+        <label>${{ early: "Finished early by", extended: "Extended by", late: "Start delayed by" }[d.actual]}</label>
+        <select data-f="actualMins" data-i="${i}" class="${d.actualMins ? "" : "needs"}">${durOptions(d.actualMins, d.actual === "extended" ? 12 * 60 : Math.max(15, shiftLen - 15))}</select>
       </div>
+      ${d.actual === "late" ? `
+      <div class="field">
+        <label>Comp rest or late start? <span class="req">required</span></label>
+        <select data-f="lateReason" data-i="${i}" class="${d.lateReason ? "" : "needs"}">${opt("", "— Select —", !d.lateReason)}${LATE_REASONS.map(r => opt(r, r, d.lateReason === r)).join("")}</select>
+      </div>` : ""}
       ${d.actual === "early" ? `
       <div class="field">
         <label>Reason <span class="req">required</span></label>
@@ -909,11 +933,16 @@ function dayEditor(d, i) {
       <label>Reason (details) <span class="req">required</span></label>
       <input type="text" data-f="earlyNote" data-i="${i}" value="${esc(d.earlyNote)}" placeholder="Why did you finish early?" class="${d.earlyNote.trim() ? "" : "needs"}">
     </div>` : ""}
+    ${d.actual === "late" && d.lateReason === "Late Start" ? `
+    <div class="field">
+      <label>Reason (optional)</label>
+      <input type="text" data-f="lateNote" data-i="${i}" value="${esc(d.lateNote)}" placeholder="e.g. traffic, previous call">
+    </div>` : ""}
     ${d.actualMins ? `
     <div class="calc">
       <div><span>Actual</span><strong>${esc(a.from)} – ${esc(a.to)}</strong></div>
       <div><span>Hours worked</span><strong>${fmtDur(shiftMins(a.from, a.to))}</strong></div>
-      <div><span>${d.actual === "early" ? "Short by" : "Overtime"}</span><strong>${fmtDur(d.actualMins)}</strong></div>
+      <div><span>${d.actual === "extended" ? "Overtime" : "Short by"}</span><strong>${fmtDur(d.actualMins)}</strong></div>
     </div>` : ""}` : ""}
 
     ${d.actual === "times" && d.roster ? `
@@ -966,6 +995,7 @@ function dayEditor(d, i) {
         <div class="field"><label>To</label>${timeSelect("subsTo", i, d.subsTo)}</div>
         <div class="field"><label>Rate</label><select data-f="subsRate" data-i="${i}">${opt("", "— Select —", !d.subsRate)}${["5 hr", "10 hr"].map(r => opt(r, r, d.subsRate === r)).join("")}</select></div>
         <div class="field"><label>Location / incident</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}"></div>
+        <div class="field"><label>Vehicle <span class="req">required</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="Call sign / reg" class="${d.subsVehicle.trim() ? "" : "needs"}"></div>
       </div>` : ""}
     </fieldset>` : ""}
 
@@ -987,10 +1017,14 @@ function onDayInput(e) {
   const d = sheet.days[i];
 
   // Plain text fields: save without re-rendering (keeps the keyboard open).
-  const textFields = ["otReason", "subsLocation", "swapNote", "earlyNote"];
+  const textFields = ["otReason", "subsLocation", "subsVehicle", "swapNote", "earlyNote", "lateNote"];
   if (textFields.includes(f)) {
     d[f] = el.value;
-    if (f === "otReason" || f === "earlyNote") el.classList.toggle("needs", !el.value.trim());
+    if (["otReason", "earlyNote", "subsVehicle"].includes(f)) el.classList.toggle("needs", !el.value.trim());
+    if (f === "subsVehicle" && e.type === "change") {
+      d.subsVehicle = el.value = el.value.trim().toUpperCase();
+      rememberVehicle(d.subsVehicle);
+    }
     touch(sheet);
     saveSoon();
     if (e.type === "change") updateDayHead(i);
@@ -1022,7 +1056,7 @@ function onDayInput(e) {
     case "actual": {
       d.actual = el.value;
       if (d.actual === "times" && !d.actualFrom) { d.actualFrom = d.rosterFrom; d.actualTo = d.rosterTo; }
-      if (d.actual === "early" && d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) d.actualMins = 0;
+      if ((d.actual === "early" || d.actual === "late") && d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) d.actualMins = 0;
       break;
     }
     case "ot": {
@@ -1057,6 +1091,20 @@ function onDayInput(e) {
   rerenderDay(i);
 }
 
+// Remember recently used vehicles so they can be picked again quickly.
+function rememberVehicle(v) {
+  v = String(v || "").trim().toUpperCase();
+  if (!v) return;
+  const list = (state.profile.vehicles || []).filter(x => x !== v);
+  state.profile.vehicles = [v, ...list].slice(0, 15);
+  renderVehicleList();
+  saveSoon();
+}
+function renderVehicleList() {
+  const dl = $("vehicleList");
+  if (dl) dl.innerHTML = (state.profile.vehicles || []).map(v => `<option value="${esc(v)}">`).join("");
+}
+
 function updateDayHead(i) {
   // Refresh tag row only (e.g. "Incident no. needed") without rebuilding inputs.
   const sheet = currentSheet();
@@ -1075,7 +1123,7 @@ function copyToNext(i) {
   const src = sheet.days[i];
   const dst = sheet.days[i + 1];
   const keep = { date: dst.date };
-  Object.assign(dst, structuredClone(src), keep, { otReason: "", earlyReason: "", earlyNote: "", subs: false, subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
+  Object.assign(dst, structuredClone(src), keep, { otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
   if (!dst.otAuto) { dst.ot = false; dst.otFrom = ""; dst.otTo = ""; dst.otAuto = true; }
   autoOvertime(dst);
   touch(sheet, `Copied ${DAYS[i].short} → ${DAYS[i + 1].short}`);
@@ -1116,6 +1164,11 @@ function validate(sheet) {
       else if (d.earlyReason === "Other" && !d.earlyNote.trim()) errors.push(`${n}: say why you finished early.`);
     }
     if (d.roster === "times" && d.actual === "extended" && !d.actualMins) errors.push(`${n}: how long was the extended duty?`);
+    if (d.roster === "times" && d.actual === "late") {
+      if (!d.actualMins) errors.push(`${n}: how much later did you start?`);
+      else if (d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) errors.push(`${n}: started late by more than the whole shift.`);
+      if (!d.lateReason) errors.push(`${n}: choose comp rest or late start.`);
+    }
     if (d.ot) {
       if (!isTime(d.otFrom) || !isTime(d.otTo)) errors.push(`${n}: overtime from/to times are needed.`);
       if (!d.otReason.trim()) errors.push(`${n}: an incident number / reason is required for overtime.`);
@@ -1125,6 +1178,7 @@ function validate(sheet) {
       if (!isTime(d.subsTo)) errors.push(`${n}: subsistence "To" time is missing.`);
       if (!d.subsRate.trim()) errors.push(`${n}: subsistence rate is missing.`);
       if (!d.subsLocation.trim()) errors.push(`${n}: subsistence location / incident is missing.`);
+      if (!(d.subsVehicle || "").trim()) errors.push(`${n}: subsistence vehicle is missing.`);
     }
   });
   return errors;
@@ -1243,7 +1297,8 @@ function fillWorksheet(wb, ws, sheet) {
     setCell(ws, `${EXCEL.otFromCol}${m.rosterRow}`, c.otFrom);
     setCell(ws, `${EXCEL.otToCol}${m.rosterRow}`, c.otTo);
     setCell(ws, `${EXCEL.otReasonCol}${m.rosterRow}`, c.otReason);
-    const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate.trim(), d.subsLocation.trim()] : ["", "", "", ""];
+    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim() ? `Vehicle ${(d.subsVehicle || "").trim()}` : ""].filter(Boolean).join(" – ");
+    const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate.trim(), where] : ["", "", "", ""];
     subs.forEach((v, k) => setCell(ws, `${EXCEL.subsCols[k]}${m.rosterRow}`, v));
   });
 
@@ -1597,7 +1652,7 @@ function searchText(s) {
   return [
     displayDate(s.weekEnding), s.weekEnding, s.status, amendLabel(s) ? `amended ${amendLabel(s)}` : "", s.sends?.length ? "sent emailed" : "not sent",
     ...(s.sends || []).flatMap(r => [...r.to, ...r.cc].flatMap(x => [x.label, x.name, x.email])),
-    ...s.days.flatMap(d => [d.station, d.rosterLeave, d.actualLeave, d.otReason, d.subsLocation, d.swapNote])
+    ...s.days.flatMap(d => [d.station, d.rosterLeave, d.actualLeave, d.otReason, d.subsLocation, d.subsVehicle, d.swapNote, d.earlyReason, d.lateReason])
   ].join(" ").toLowerCase();
 }
 
@@ -1819,6 +1874,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadState();
   initSigPad();
   initInstall();
+  renderVehicleList();
   bind();
   renderProfile();
   showTab(state.profile.name ? "timesheet" : "profile");

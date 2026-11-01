@@ -22,10 +22,11 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Finished as rostered.**
   - **Finished early:** pick how long, in 15-minute steps. The app works out the finish time and hours worked, and asks why: Certified Sick Leave, Self-Certified Sick Leave, Force Majeure – Family Emergency, or Other (with a note). The reason goes in column M on that day's row, for example "Finished early 16:15 – Certified Sick Leave".
   - **Extended duty:** pick how long. The actual finish and the overtime (rostered finish → new finish) are filled in for you, and an incident number is required.
-  - **Other times** (for example started late), **Leave**, or **Not worked**.
+  - **Comp rest / late start:** pick how much later you started. The finish stays as rostered and the hours are worked out. Then choose **Compensatory Rest** or **Late Start** (with an optional note). Column M shows "Comp rest – start 10:00" or "Late start 08:30 – previous call".
+  - **Other times**, **Leave**, or **Not worked**.
 - **15-minute pickers:** every time and hours box scrolls in 15-minute steps.
 - **Overtime:** the Yes/No is set automatically when you started at the rostered time but finished later. OT runs from the rostered finish to the actual finish. It can also be set by hand. An **incident number / reason is required** before you can publish.
-- **Subsistence:** can be claimed on any day, with From, To, Rate and Location/Incident.
+- **Subsistence:** can be claimed on any day, with From, To, Rate, Location/Incident and **Vehicle**. The vehicle is required, and recent vehicles are remembered for quick picking. It goes into the Location & Incident No cell, for example "Galway / INC-901 – Vehicle SL-401".
 - **Leave types:**
   - Annual Leave
   - Parental Leave
@@ -81,7 +82,7 @@ These positions match `New_Timesheet_Template_2025.xlsx`, which is included as `
 | Date | B, on the roster row (a real date, shown as dd/mm/yy) |
 | Time From / To | D / E, on the roster row and on the actual row |
 | Station Worked from | F, on the roster row (only on days worked) |
-| Subsistence From / To / 5/10 hr / Location & Incident No | G / H / I / J, on the roster row |
+| Subsistence From / To / 5/10 hr / Location & Incident No (+ Vehicle) | G / H / I / J, on the roster row |
 | Overtime From / To / Reason for O/T Incident No. | K / L / M, on the roster row |
 | On-Call (N–P) | Not used |
 
