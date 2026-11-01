@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-31">
+  <link rel="stylesheet" href="styles.css?v=2026.11.02-1">
 </head>
 <body>
   <header class="app-header">
@@ -61,6 +61,7 @@
             <div class="progress" id="sheetProgress"></div>
           </div>
           <div class="saved" id="savedIndicator" aria-live="polite"></div>
+          <div class="week-strip" id="weekStrip" aria-label="Week at a glance"></div>
         </div>
 
         <!-- Quick fill -->
@@ -121,6 +122,11 @@
             <button class="btn btn--danger-ghost" id="discardBtn">Delete draft</button>
           </div>
           <p class="hint">Drafts save automatically on this device as you type. Come back later in the week and pick up where you left off.</p>
+        </div>
+
+        <div class="action-bar" id="actionBar">
+          <span class="action-bar__progress" id="barProgress"></span>
+          <button type="button" class="btn btn--primary" id="barPublish">Review &amp; publish</button>
         </div>
       </div>
     </section>
@@ -266,7 +272,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-31</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.02-1</span></p>
       </div>
     </section>
   </main>
@@ -323,6 +329,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.01-31"></script>
+  <script src="app.js?v=2026.11.02-1"></script>
 </body>
 </html>

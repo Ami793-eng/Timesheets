@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-31";
+const APP_VERSION = "2026.11.02-1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -127,6 +127,7 @@ let state = {
 
 const ui = {
   expanded: new Set(),       // indexes of expanded day cards
+  shiftEdit: new Set(),      // day cards showing the full station/shift/time fields
   selectedDays: new Set(),   // quick-fill selection
   lastPublishedId: null
 };
@@ -527,6 +528,7 @@ function applyRosterValue(d, value, otherStart, otherFinish) {
 
 function showTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
+  document.body.classList.toggle("has-bar", name === "timesheet" && !!currentSheet());
   document.querySelectorAll(".panel").forEach(p => { p.hidden = p.id !== `tab-${name}`; });
   if (name === "library") renderLibrary();
   if (name === "timesheet") renderTimesheet();
@@ -805,6 +807,7 @@ function renderTimesheet() {
   const sheet = currentSheet();
   $("startView").hidden = !!sheet;
   $("editView").hidden = !sheet;
+  document.body.classList.toggle("has-bar", !!sheet && document.querySelector('.tab[aria-selected="true"]')?.dataset.tab === "timesheet");
   if (!sheet) return renderStart();
 
   const p = state.profile;
@@ -924,6 +927,7 @@ function startTimesheet() {
     state.currentId = sheet.id;
   }
   ui.expanded.clear();
+  ui.shiftEdit.clear();
   if (ui.pendingOpen !== undefined) { ui.expanded.add(ui.pendingOpen); delete ui.pendingOpen; }
   ui.selectedDays.clear();
   saveState();
@@ -1056,6 +1060,53 @@ function rerenderDay(i) {
   tmp.innerHTML = dayCard(sheet.days[i], i);
   el.replaceWith(tmp.firstElementChild);
   if (focusKey) document.querySelector(focusKey)?.focus({ preventScroll: true });
+  renderProgress(sheet);
+}
+
+// Short coloured labels for a day's header, e.g. [Day 07–19] [Ext +1h 30m] [OT 19:00–20:30].
+function hh(t) { return isTime(t) ? (t.endsWith(":00") ? t.slice(0, 2) : t) : t; }
+function dayChips(d) {
+  const chips = [];
+  const a = resolvedActual(d);
+  if (!d.roster) chips.push(["Not entered", "chip-empty"]);
+  else if (d.roster === "rest") chips.push(["Rest Day", "chip-rest"]);
+  else if (d.roster === "leave") chips.push([d.rosterLeave, "chip-leave"]);
+  else {
+    const night = isTime(d.rosterFrom) && isTime(d.rosterTo) && toMin(d.rosterFrom) > toMin(d.rosterTo);
+    const kind = d.rosterLabel === "Road" ? "road" : night ? "night" : "day";
+    const name = d.rosterLabel && d.rosterLabel !== "Rest Day" ? d.rosterLabel : night ? "Night" : "Day";
+    const where = d.rosterLabel === "Road" ? ` · ${d.station || "station?"}` : "";
+    chips.push([`${name}${where} ${hh(d.rosterFrom)}–${hh(d.rosterTo)}`, `chip-${kind}`]);
+  }
+  const m = fmtDur(d.actualMins);
+  if (d.roster === "times") {
+    if (d.actual === "early") chips.push([d.actualMins ? `Early −${m}${d.earlyReason ? ` · ${d.earlyReason === "Other" ? (d.earlyNote || "Other") : d.earlyReason}` : ""}` : "Early – how long?", "chip-warn-soft"]);
+    else if (d.actual === "extended") chips.push([d.actualMins ? `Ext +${m}` : "Ext – how long?", "chip-ot"]);
+    else if (d.actual === "late") chips.push([d.actualMins ? `${d.lateReason === "Compensatory Rest" ? "Comp rest" : "Late start"} +${m}` : "Late – how long?", "chip-warn-soft"]);
+    else if (d.actual === "partleave") chips.push([d.partLeave && isTime(d.partFrom) ? `${d.partLeave} ${fmtDur(partLeaveMins(d))} + ${d.partNote.trim() || "worked"} ${d.partFrom}–${d.partTo}` : "Part leave – details?", "chip-leave"]);
+    else if (d.actual === "times" && a.kind === "times") chips.push([`Actual ${a.from}–${a.to}`, "chip-plain"]);
+    else if (d.actual === "leave") chips.push([d.actualLeave || "Leave?", "chip-leave"]);
+    else if (d.actual === "none") chips.push(["Not worked", "chip-plain"]);
+  } else if (d.roster === "rest" && a.kind === "times") chips.push([`Worked ${a.from}–${a.to}`, "chip-ot"]);
+  if (d.ot) chips.push([`OT ${d.otFrom}–${d.otTo}`, "chip-ot"]);
+  if (d.ot && !d.otReason.trim()) chips.push(["Incident no. needed", "chip-warn"]);
+  if (d.subs) chips.push(["Subsistence", "chip-subs"]);
+  return chips;
+}
+
+function dayHead(d, i, open, extra = "") {
+  const dt = parseIso(d.date);
+  const chips = dayChips(d).map(([t, c]) => `<span class="chip2 ${c}">${esc(t)}</span>`).join("");
+  return `
+    <button type="button" class="day__head" data-toggle="${i}" aria-expanded="${open}">
+      <span class="day__date"><span class="day__dow">${DAYS[i].short}</span><span class="day__dnum">${dt.getDate()}</span></span>
+      <span class="day__main">
+        <span class="day__title">${d.done ? `<span class="day__tick" aria-label="Done">✓</span>` : ""}${DAYS[i].name}${extra}</span>
+        <span class="day__flags">${chips}</span>
+        <span class="day__sum visually-hidden">${esc(daySummary(d).text)}</span>
+      </span>
+      <span class="day__chev" aria-hidden="true"></span>
+    </button>`;
 }
 
 function dayCard(d, i) {
@@ -1063,11 +1114,7 @@ function dayCard(d, i) {
   if (!open && isPlainRest(d)) {
     return `
   <article class="day day--rest ${d.done ? "day--done" : ""}" data-day-card="${i}">
-    <button type="button" class="day__head" data-toggle="${i}" aria-expanded="false">
-      <span class="day__name"><span class="day__title">${d.done ? `<span class="day__tick" aria-label="Confirmed">✓</span>` : ""}${DAYS[i].name}</span><small>${esc(displayDate(d.date))}</small></span>
-      <span class="day__sum">Rest Day${d.done ? "" : " — confirm?"}</span>
-      <span class="day__chev" aria-hidden="true"></span>
-    </button>
+    ${dayHead(d, i, false, d.done ? "" : ` <small class="day__ask">confirm?</small>`).replace(`${esc(daySummary(d).text)}</span>`, `Rest Day${d.done ? "" : " — confirm?"}</span>`)}
     ${d.done ? "" : `
     <div class="rest-actions">
       <button type="button" class="btn btn--small btn--primary" data-rest-ok="${i}">✓ Rest day</button>
@@ -1076,20 +1123,9 @@ function dayCard(d, i) {
   </article>`;
   }
   const sum = daySummary(d);
-  const flags = [
-    d.ot ? `<span class="tag tag--ot">OT ${esc(d.otFrom)}–${esc(d.otTo)}</span>` : "",
-    d.ot && !d.otReason.trim() ? `<span class="tag tag--warn">Incident no. needed</span>` : "",
-    d.subs ? `<span class="tag tag--subs">Subsistence</span>` : ""
-  ].join("");
-
   return `
   <article class="day ${open ? "day--open" : ""} ${d.done ? "day--done" : ""} ${sum.cls}" data-day-card="${i}">
-    <button type="button" class="day__head" data-toggle="${i}" aria-expanded="${open}">
-      <span class="day__name"><span class="day__title">${d.done ? `<span class="day__tick" aria-label="Done">✓</span>` : ""}${DAYS[i].name}</span><small>${esc(displayDate(d.date))}</small></span>
-      <span class="day__sum">${esc(sum.text)}</span>
-      <span class="day__flags">${flags}</span>
-      <span class="day__chev" aria-hidden="true"></span>
-    </button>
+    ${dayHead(d, i, open)}
     ${open ? dayEditor(d, i) : ""}
   </article>`;
 }
@@ -1103,17 +1139,16 @@ function dayEditor(d, i) {
 
   const shiftLen = shiftMins(d.rosterFrom, d.rosterTo);
   const a = resolvedActual(d);
-  const actualOpts = [
-    isTimes ? opt("same", "Finished as rostered", d.actual === "same") : "",
-    isTimes ? opt("early", "Finished early", d.actual === "early") : "",
-    isTimes ? opt("extended", "Extended duty (finished late)", d.actual === "extended") : "",
-    isTimes ? opt("late", "Comp rest / late start", d.actual === "late") : "",
-    d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
-    opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
-    opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none"),
-    `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}${isTimes ? opt("partleave", "Leave + part shift / meeting", d.actual === "partleave") : ""}</optgroup>`
-  ].join("");
-
+  const showShift = ui.shiftEdit.has(i) || d.roster !== "times" || rv === "other" || (isRoad && !ROAD_STATIONS.includes(d.station));
+  if (!showShift) {
+    return `
+  <div class="day__body">
+    <div class="shift-line">
+      <span><strong>${esc(d.station || st)}</strong> · ${esc(d.rosterLabel && d.rosterLabel !== "Rest Day" ? d.rosterLabel + " " : "")}${esc(d.rosterFrom)}–${esc(d.rosterTo)} · ${fmtDur(shiftLen)}</span>
+      <button type="button" class="link-btn" data-shift-edit="${i}">Change</button>
+    </div>
+    ${dayEditorRest(d, i, { isTimes, isRoad, isSwap, shiftLen, a })}`;
+  }
   return `
   <div class="day__body">
     <div class="grid-2">
@@ -1136,9 +1171,25 @@ function dayEditor(d, i) {
       <div class="field"><label>Hours</label><select data-f="rosterHours" data-i="${i}">${durOptions(shiftLen, 24 * 60, "hrs")}</select></div>
     </div>` : ""}
 
+    ${dayEditorRest(d, i, { isTimes, isRoad, isSwap, shiftLen, a })}`;
+}
+
+// Everything below the shift fields: what happened, overtime, subsistence, buttons.
+function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
+  const actualOpts = [
+    isTimes ? opt("same", "Finished as rostered", d.actual === "same") : "",
+    isTimes ? opt("early", "Finished early", d.actual === "early") : "",
+    isTimes ? opt("extended", "Extended duty (finished late)", d.actual === "extended") : "",
+    isTimes ? opt("late", "Comp rest / late start", d.actual === "late") : "",
+    d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
+    opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
+    opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none"),
+    `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}${isTimes ? opt("partleave", "Leave + part shift / meeting", d.actual === "partleave") : ""}</optgroup>`
+  ].join("");
+  return `
     ${d.roster ? `
     <div class="field">
-      <label>Actual</label>
+      <label>What happened</label>
       <select data-f="actual" data-i="${i}">${actualOpts}</select>
     </div>` : ""}
 
@@ -1215,12 +1266,12 @@ function dayEditor(d, i) {
     </div>` : ""}
 
     ${d.roster ? `
-    <fieldset class="sub">
-      <legend>Overtime worked?</legend>
-      <div class="segmented">
+    <fieldset class="sub" aria-label="Overtime worked?">
+      <div class="toggle-row"><span class="toggle-row__label">Overtime worked?</span>
+      <div class="segmented segmented--compact">
         <label><input type="radio" name="ot${i}" data-f="ot" data-i="${i}" value="no" ${!d.ot ? "checked" : ""}> No</label>
         <label><input type="radio" name="ot${i}" data-f="ot" data-i="${i}" value="yes" ${d.ot ? "checked" : ""}> Yes</label>
-      </div>
+      </div></div>
       ${d.ot ? `
       ${d.otAuto ? `<p class="hint">Worked out from your actual finish time${d.otFrom && d.otTo ? ` (${fmtDur(shiftMins(d.otFrom, d.otTo))})` : ""}. Change it if needed.</p>` : ""}
       <div class="grid-2">
@@ -1237,12 +1288,12 @@ function dayEditor(d, i) {
       </div>` : ""}
     </fieldset>
 
-    <fieldset class="sub">
-      <legend>Subsistence?</legend>
-      <div class="segmented">
+    <fieldset class="sub" aria-label="Subsistence?">
+      <div class="toggle-row"><span class="toggle-row__label">Subsistence?</span>
+      <div class="segmented segmented--compact">
         <label><input type="radio" name="subs${i}" data-f="subs" data-i="${i}" value="no" ${!d.subs ? "checked" : ""}> No</label>
         <label><input type="radio" name="subs${i}" data-f="subs" data-i="${i}" value="yes" ${d.subs ? "checked" : ""}> Yes</label>
-      </div>
+      </div></div>
       ${d.subs ? `
       <div class="grid-2">
         <div class="field"><label>From</label>${timeSelect("subsFrom", i, d.subsFrom)}</div>
@@ -1286,6 +1337,8 @@ function onDayInput(e) {
     return;
   }
   if (e.type === "input") return; // structural fields are handled on "change"
+  // Keep the shift fields open while someone is changing them.
+  if (["station", "rosterValue", "rosterFrom", "rosterTo", "rosterHours"].includes(f)) ui.shiftEdit.add(i);
 
   switch (f) {
     case "station": {
@@ -1366,15 +1419,14 @@ function renderVehicleList() {
 }
 
 function updateDayHead(i) {
-  // Refresh tag row only (e.g. "Incident no. needed") without rebuilding inputs.
+  // Refresh the header (chips, summary) without rebuilding the inputs below it.
   const sheet = currentSheet();
-  const card = document.querySelector(`[data-day-card="${i}"] .day__flags`);
-  if (!sheet || !card) return;
+  const head = document.querySelector(`[data-day-card="${i}"] .day__head`);
+  if (!sheet || !head) return;
   const tmp = document.createElement("div");
   tmp.innerHTML = dayCard(sheet.days[i], i);
-  card.innerHTML = tmp.querySelector(".day__flags").innerHTML;
-  const sum = document.querySelector(`[data-day-card="${i}"] .day__sum`);
-  if (sum) sum.textContent = tmp.querySelector(".day__sum").textContent;
+  head.replaceWith(tmp.querySelector(".day__head"));
+  renderWeekStrip(sheet);
 }
 
 function copyToNext(i) {
@@ -1420,7 +1472,33 @@ function markDone(i) {
   toast(next >= 0 ? `${DAYS[i].name} done. On to ${DAYS[next].name}.` : `${DAYS[i].name} done.`);
 }
 
+function renderWeekStrip(sheet) {
+  const el = $("weekStrip");
+  if (!el || !sheet) return;
+  el.innerHTML = sheet.days.map((d, i) => {
+    const dt = parseIso(d.date);
+    const problem = d.roster && dayErrors(d, i).length;
+    const state = !d.roster ? "empty" : problem ? "warn" : d.done ? (isPlainRest(d) ? "rest-done" : "done")
+      : isPlainRest(d) ? "rest" : d.actual === "leave" || d.actual === "partleave" ? "leave" : "todo";
+    const icon = state === "done" || state === "rest-done" ? "✓" : state === "warn" ? "!" : "";
+    return `<button type="button" class="wk wk--${state}" data-jump="${i}" aria-label="${DAYS[i].name} ${dt.getDate()}">
+      <span class="wk__dow">${DAYS[i].short.slice(0, 2)}</span><span class="wk__num">${dt.getDate()}</span><span class="wk__icon">${icon}</span></button>`;
+  }).join("");
+}
+
+function jumpToDay(i) {
+  const sheet = currentSheet();
+  if (!sheet) return;
+  if (!isPlainRest(sheet.days[i]) || sheet.days[i].done === false) ui.expanded.add(i);
+  if (isPlainRest(sheet.days[i])) ui.expanded.delete(i);
+  rerenderDay(i);
+  document.querySelector(`[data-day-card="${i}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderProgress(sheet) {
+  renderWeekStrip(sheet);
+  const doneCount = sheet ? sheet.days.filter(d => d.done).length : 0;
+  if ($("barProgress")) $("barProgress").textContent = `${doneCount}/7 days done`;
   const el = $("sheetProgress");
   if (!el || !sheet) return;
   const done = sheet.days.filter(d => d.done).length;
@@ -2239,6 +2317,7 @@ function setQuickFillOpen() {
 function openSheet(id) {
   state.currentId = id;
   ui.expanded.clear();
+  ui.shiftEdit.clear();
   ui.selectedDays.clear();
   saveState();
   showTab("timesheet");
@@ -2319,7 +2398,7 @@ function importBackup(e) {
 function bind() {
   document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-rest-ok],[data-rest-worked],[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
+    const t = e.target.closest("[data-jump],[data-shift-edit],[data-rest-ok],[data-rest-worked],[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
     if (!t) return;
     const ds = t.dataset;
     if (ds.goto) { e.preventDefault(); if (ds.closeSend !== undefined) $("sendDialog").close("cancel"); showTab(ds.goto); }
@@ -2345,6 +2424,8 @@ function bind() {
     else if (ds.copyNext !== undefined) copyToNext(Number(ds.copyNext));
     else if (ds.done !== undefined) markDone(Number(ds.done));
     else if (ds.restOk !== undefined) confirmRest(Number(ds.restOk));
+    else if (ds.jump !== undefined) jumpToDay(Number(ds.jump));
+    else if (ds.shiftEdit !== undefined) { ui.shiftEdit.add(Number(ds.shiftEdit)); rerenderDay(Number(ds.shiftEdit)); }
     else if (ds.restWorked !== undefined) workedRest(Number(ds.restWorked));
     else if (ds.clearDay !== undefined) clearDay(Number(ds.clearDay));
   });
@@ -2370,6 +2451,11 @@ function bind() {
   });
   $("applyBtn").addEventListener("click", applyQuickFill);
   $("publishBtn").addEventListener("click", publish);
+  $("barPublish").addEventListener("click", () => {
+    $("declaration").closest(".card").scrollIntoView({ behavior: "smooth", block: "center" });
+    $("declaration").closest(".card").classList.add("pulse");
+    setTimeout(() => $("declaration").closest(".card").classList.remove("pulse"), 1200);
+  });
   $("previewBtn").addEventListener("click", previewDownload);
   $("closeBtn").addEventListener("click", () => { state.currentId = null; saveState(); renderTimesheet(); toast("Draft kept — find it under Library or Start."); });
   $("discardBtn").addEventListener("click", () => { const s = currentSheet(); if (s) deleteSheet(s.id); });
