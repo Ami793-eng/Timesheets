@@ -134,3 +134,12 @@ Then open http://localhost:8000.
 | `lib/exceljs.min.js` | Excel library (ExcelJS 4.4.0, MIT licence), bundled so there's no CDN dependency |
 | `template.xlsx` | The NAS timesheet template the app fills in |
 | `fonts/` | Handwriting fonts for typed signatures (open licences, see `fonts/LICENSES.txt`) |
+
+## Making changes (cache busting)
+
+Phones cache the site's files. To make sure everyone gets the new code together, bump the version in **both** of these places whenever you change `app.js` or `styles.css`:
+
+- `index.html`: the `?v=` on `styles.css` and `app.js`
+- `app.js`: `APP_VERSION`
+
+The current version is shown at the bottom of **My details**.

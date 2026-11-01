@@ -10,6 +10,9 @@
 /* ------------------------------------------------------------------ */
 
 const STORAGE_KEY = "timesheetHub_v1";
+// Bump together with the ?v= numbers in index.html on every release, so phones
+// never mix a new page with an old cached app.js / styles.css.
+const APP_VERSION = "2026.11.01-7";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1257,6 +1260,7 @@ function firstName(name) { return String(name || "").trim().split(/\s+/)[0] || "
 function renderContacts() {
   ROLES.forEach(role => {
     const list = state.profile.contacts.filter(c => c.role === role);
+    if (!$(`${role}List`)) return;
     $(`${role}List`).innerHTML = list.length ? list.map(c => `
       <div class="contact" data-contact="${esc(c.id)}">
         <label class="contact__def" title="Ticked by default when sending">
@@ -1636,7 +1640,7 @@ function bind() {
   $("pBase").addEventListener("change", () => { $("pBaseOtherWrap").hidden = $("pBase").value !== "Other"; });
   $("pName").addEventListener("input", () => { if (sig.mode === "type" && !$("pSigText").value.trim()) renderTypedSig(); });
   $("saveProfileBtn").addEventListener("click", saveProfile);
-  ROLES.map(r => `${r}List`).forEach(id => {
+  ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);
     $(id).addEventListener("click", e => { const b = e.target.closest("[data-cf-del]"); if (b) removeContact(b.closest("[data-contact]").dataset.contact); });

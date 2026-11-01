@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b5f73">
   <title>Timesheet Hub</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-7">
 </head>
 <body>
   <header class="app-header">
@@ -228,6 +228,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-7</span></p>
       </div>
     </section>
   </main>
@@ -264,7 +265,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="lib/exceljs.min.js"></script>
-  <script src="app.js"></script>
+  <script src="lib/exceljs.min.js?v=4.4.0"></script>
+  <script src="app.js?v=2026.11.01-7"></script>
 </body>
 </html>
