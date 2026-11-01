@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-16";
+const APP_VERSION = "2026.11.01-17";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1148,7 +1148,7 @@ function dayEditor(d, i) {
         <div class="field"><label>From</label>${timeSelect("subsFrom", i, d.subsFrom)}</div>
         <div class="field"><label>To</label>${timeSelect("subsTo", i, d.subsTo)}</div>
         <div class="field"><label>Rate</label><select data-f="subsRate" data-i="${i}">${opt("", "— Select —", !d.subsRate)}${["5 hr", "10 hr"].map(r => opt(r, r, d.subsRate === r)).join("")}</select></div>
-        <div class="field"><label>Location / incident</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}"></div>
+        <div class="field"><label>Location</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}" placeholder="e.g. Sligo UH"></div>
         <div class="field"><label>Vehicle <span class="opt">optional</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="e.g. 7R10"></div>
       </div>` : ""}
     </fieldset>` : ""}
@@ -1375,7 +1375,7 @@ function dayErrors(d, i) {
       if (!isTime(d.subsFrom)) errors.push(`${n}: subsistence "From" time is missing.`);
       if (!isTime(d.subsTo)) errors.push(`${n}: subsistence "To" time is missing.`);
       if (!d.subsRate.trim()) errors.push(`${n}: subsistence rate is missing.`);
-      if (!d.subsLocation.trim()) errors.push(`${n}: subsistence location / incident is missing.`);
+      if (!d.subsLocation.trim()) errors.push(`${n}: subsistence location is missing.`);
     }
   }
   return errors;
@@ -1506,7 +1506,7 @@ function fillWorksheet(wb, ws, sheet) {
     setCell(ws, `${EXCEL.otFromCol}${m.rosterRow}`, c.otFrom);
     setCell(ws, `${EXCEL.otToCol}${m.rosterRow}`, c.otTo);
     setCell(ws, `${EXCEL.otReasonCol}${m.rosterRow}`, c.otReason);
-    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim()].filter(Boolean).join(" – ");
+    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim()].filter(Boolean).join(" - ");
     const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate.trim(), where] : ["", "", "", ""];
     subs.forEach((v, k) => setCell(ws, `${EXCEL.subsCols[k]}${m.rosterRow}`, v));
   });

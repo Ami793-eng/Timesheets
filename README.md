@@ -37,7 +37,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - Quick fill starts folded away once a timesheet has entries.
 - **15-minute pickers:** every time and hours box scrolls in 15-minute steps.
 - **Overtime:** the Yes/No is set automatically when you started at the rostered time but finished later. OT runs from the rostered finish to the actual finish. It can also be set by hand. An **incident number / reason is required** before you can publish.
-- **Subsistence:** can be claimed on any day, with From, To, Rate, Location/Incident and an optional **Vehicle** (for notes, e.g. 7R10). Recent vehicles are remembered for quick picking. The vehicle goes into the Location & Incident No cell as plain text, for example "Galway / INC-901 – 7R10".
+- **Subsistence:** can be claimed on any day, with From, To, Rate, Location and an optional **Vehicle** (for notes, e.g. 7R10). Recent vehicles are remembered for quick picking. The sheet shows the location as typed, plus " - <vehicle>" if one is entered, for example "Sligo UH - 7R10".
 - **Leave types:**
   - Annual Leave
   - Parental Leave
