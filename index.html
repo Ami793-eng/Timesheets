@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-22">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-24">
 </head>
 <body>
   <header class="app-header">
@@ -269,7 +269,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-22</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-24</span></p>
       </div>
     </section>
   </main>
@@ -278,7 +278,7 @@
   <dialog id="publishedDialog">
     <form method="dialog" class="dialog">
       <h3>Timesheet published</h3>
-      <p id="publishedText">The locked PDF has been downloaded and saved to your library.</p>
+      <p id="publishedText">The PDF has been downloaded and saved to your library.</p>
       <div class="actions">
         <button class="btn btn--primary" value="email">Email it now</button>
         <button class="btn" value="download">Download again</button>
@@ -296,8 +296,8 @@
       <div class="email-preview" id="sendPreview" aria-live="polite"></div>
       <p class="hint" id="sendHow"></p>
       <div class="actions">
-        <button class="btn btn--primary" id="sendEmailBtn" value="mail">Open email</button>
-        <button class="btn" id="sendShareBtn" value="share" hidden>Share file instead</button>
+        <button class="btn btn--primary" id="sendShareBtn" value="share" hidden>Email with PDF attached</button>
+        <button class="btn" id="sendEmailBtn" value="mail">Open email</button>
         <button class="btn btn--ghost" value="cancel" formnovalidate>Cancel</button>
       </div>
       <div id="sendLog"></div>
@@ -324,6 +324,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.01-22"></script>
+  <script src="app.js?v=2026.11.01-24"></script>
 </body>
 </html>

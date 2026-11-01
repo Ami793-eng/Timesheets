@@ -375,3 +375,9 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
 .lib-item__more[open] { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .lib-item__more[open] summary { width: 100%; }
 .lib-item__more .hint { margin: 0; }
+
+/* Rest days: one slim line, confirm as they come */
+.day--rest { border-left-color: var(--muted); }
+.day--rest .day__head { padding-top: 8px; padding-bottom: 8px; }
+.day--rest .day__sum { color: var(--muted); }
+.rest-actions { display: flex; gap: 6px; justify-content: flex-end; padding: 0 14px 10px; }

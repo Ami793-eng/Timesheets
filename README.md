@@ -13,8 +13,8 @@ Staff fill in their week (they can save it and come back during the week), publi
 
   Whichever you choose, the signature is placed as an image in the Employee Signature box.
 - **My roster:** in My details, pick a **base roster** and a **starting week** (a week-commencing Monday, and which line that week is). The app counts the 16-week rotation forwards and backwards from there, and shows this week's and next week's line as a check.
-  - **New timesheets fill themselves in:** each shift shows as worked as rostered (Day / Night / Road), and rest days are ticked off and folded into a single "Rest days: …" line.
-  - **Rest days stay out of the way** unless you tap **Worked a rest day / swap?** to add overtime or a swap.
+  - **New timesheets fill themselves in:** each shift shows as worked as rostered (Day / Night / Road), and the first shift opens ready to check.
+  - **Rest days** stay as one slim line, for example "Wednesday · Rest Day — confirm? [✓ Rest day] [Worked]". Confirm each as the week goes on, or tap **Worked** (or the line itself) to open it and enter times and overtime. **Done – next day** skips over rest days. Any still unconfirmed at publish are recorded as Rest Day after one prompt.
   - **Built in:** *Clinical Hub 16week*. Day 07–19, Night 19–07, Road 07–19.
   - **Road shifts** are worked from **Sligo, Manorhamilton or Ballyshannon**. Set a *usual road base* in My roster to fill it in automatically, or leave it on *Ask each time*: each Road day then asks, and can't be marked Done or published until a station is chosen. More rosters can be added to `ROSTERS` in `app.js`.
 - **Quick fill:** tap several days, pick a shift or leave type, and apply it to all of them at once.
@@ -52,7 +52,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Preview PDF** on a draft lets you check it first.
   - **Revise** in the Library makes a corrected version (AMENDED 1, 2, …).
   - **Excel:** the Library card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
-- **Attachments:** *Share file* (phones) attaches the PDF directly, and the addresses are copied for you to paste. *Open email* downloads the PDF for you to attach, because browsers can't add attachments to an email draft themselves.
+- **Attachments:** on phones, **Email with PDF attached** opens your phone's share sheet with the PDF already attached. Pick your email app, then paste the copied addresses into To. **Open email** fills in the addresses and subject, but the PDF has to be attached by hand from Downloads, because browsers can't attach files to an email draft themselves.
 - **Email recipients:** set them up in My details, under the signature.
   - **ORM** (Operational Resource Manager), **DCM** (Duty Control Manager) and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
   - **Me:** your own email, sent as *CC*.

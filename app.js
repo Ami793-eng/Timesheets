@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-22";
+const APP_VERSION = "2026.11.01-24";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -860,7 +860,7 @@ function applyRoster(sheet) {
     d.station = code === "X" ? (state.profile.roadBase || "") : rw.roster.station;
     d.rosterLabel = sh.label;
     if (code === "R") {
-      d.roster = "rest"; d.actual = "none"; d.done = true;
+      d.roster = "rest"; d.actual = "none"; d.done = false;   // confirmed with one tap as the week goes on
     } else {
       d.roster = "times"; d.rosterFrom = sh.start; d.rosterTo = sh.finish; d.actual = "same";
     }
@@ -884,7 +884,7 @@ function startTimesheet() {
     const base = state.profile.base;
     if (base) sheet.days.forEach(d => { d.station = base; });
     if (applyRoster(sheet)) {
-      const firstShift = sheet.days.findIndex(d => !d.done);
+      const firstShift = sheet.days.findIndex(d => !d.done && !isPlainRest(d));
       if (firstShift >= 0) ui.pendingOpen = firstShift;
     }
     state.sheets.push(sheet);
@@ -893,7 +893,6 @@ function startTimesheet() {
   ui.expanded.clear();
   if (ui.pendingOpen !== undefined) { ui.expanded.add(ui.pendingOpen); delete ui.pendingOpen; }
   ui.selectedDays.clear();
-  ui.showRest = false;
   saveState();
   renderTimesheet();
   setQuickFillOpen();
@@ -961,21 +960,44 @@ function applyQuickFill() {
 
 /* Day cards ---------------------------------------------------------- */
 
-// A plain rest day that's boxed off: kept out of the way unless the user asks.
-function isQuietRest(d, i) {
-  return d.roster === "rest" && d.done && resolvedActual(d).kind === "none" && !d.ot && !d.subs && !ui.expanded.has(i);
+// A plain rest day (nothing worked or claimed) shows as one slim line unless opened.
+function isPlainRest(d) {
+  return d.roster === "rest" && resolvedActual(d).kind === "none" && !d.ot && !d.subs;
 }
 
 function renderDays(sheet) {
-  const quiet = sheet.days.map((d, i) => isQuietRest(d, i) ? i : -1).filter(i => i >= 0);
-  const hide = quiet.length && !ui.showRest;
-  const cards = sheet.days.map((d, i) => hide && quiet.includes(i) ? "" : dayCard(d, i)).join("");
-  const strip = quiet.length ? `
-    <div class="rest-strip">
-      <span class="rest-strip__label"><span class="day__tick" aria-hidden="true">✓</span> Rest days: ${quiet.map(i => DAYS[i].short).join(", ")}</span>
-      <button type="button" class="link-btn" data-show-rest>${ui.showRest ? "Hide rest days" : "Worked a rest day / swap?"}</button>
-    </div>` : "";
-  $("dayList").innerHTML = cards + strip;
+  $("dayList").innerHTML = sheet.days.map((d, i) => dayCard(d, i)).join("");
+}
+
+// Next shift day (not a plain rest day) after `i` that still needs doing, or -1.
+function nextWorkDay(sheet, i) {
+  for (let k = i + 1; k < 7; k++) if (!sheet.days[k].done && !isPlainRest(sheet.days[k])) return k;
+  return -1;
+}
+
+function confirmRest(i) {
+  const sheet = currentSheet();
+  if (!sheet) return;
+  sheet.days[i].done = true;
+  touch(sheet, `${DAYS[i].short} rest day confirmed`);
+  saveState();
+  rerenderDay(i);
+  renderProgress(sheet);
+}
+
+function workedRest(i) {
+  const sheet = currentSheet();
+  if (!sheet) return;
+  const d = sheet.days[i];
+  d.actual = "times";
+  d.done = false;
+  ui.expanded.add(i);
+  touch(sheet, `${DAYS[i].short} rest day worked`);
+  saveState();
+  rerenderDay(i);
+  renderProgress(sheet);
+  document.querySelector(`[data-day-card="${i}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  toast("Enter the times you worked, and overtime if it applies.");
 }
 
 function rerenderDay(i) {
@@ -994,6 +1016,21 @@ function rerenderDay(i) {
 
 function dayCard(d, i) {
   const open = ui.expanded.has(i);
+  if (!open && isPlainRest(d)) {
+    return `
+  <article class="day day--rest ${d.done ? "day--done" : ""}" data-day-card="${i}">
+    <button type="button" class="day__head" data-toggle="${i}" aria-expanded="false">
+      <span class="day__name"><span class="day__title">${d.done ? `<span class="day__tick" aria-label="Confirmed">✓</span>` : ""}${DAYS[i].name}</span><small>${esc(displayDate(d.date))}</small></span>
+      <span class="day__sum">Rest Day${d.done ? "" : " — confirm?"}</span>
+      <span class="day__chev" aria-hidden="true"></span>
+    </button>
+    ${d.done ? "" : `
+    <div class="rest-actions">
+      <button type="button" class="btn btn--small btn--primary" data-rest-ok="${i}">✓ Rest day</button>
+      <button type="button" class="btn btn--small" data-rest-worked="${i}">Worked</button>
+    </div>`}
+  </article>`;
+  }
   const sum = daySummary(d);
   const flags = [
     d.ot ? `<span class="tag tag--ot">OT ${esc(d.otFrom)}–${esc(d.otTo)}</span>` : "",
@@ -1305,7 +1342,7 @@ function markDone(i) {
   d.done = true;
   touch(sheet, `${DAYS[i].short} marked done`);
   ui.expanded.delete(i);
-  const next = nextOpenDay(sheet, i);
+  const next = nextWorkDay(sheet, i);
   if (next >= 0) ui.expanded.add(next);
   saveState();
   renderDays(sheet);
@@ -1395,8 +1432,13 @@ async function publish() {
   if (!$("declaration").checked) return toast("Tick the declaration box to publish.", true);
 
   const empty = sheet.days.map((d, i) => d.roster ? null : DAYS[i].name).filter(Boolean);
-  if (empty.length && !confirm(`Not entered: ${empty.join(", ")}.\n\nThese will be recorded as Rest Day. Publish?`)) return;
-  sheet.days.forEach(d => { if (!d.roster) { d.roster = "rest"; d.actual = "none"; } });
+  const unconfirmed = sheet.days.map((d, i) => d.roster === "rest" && !d.done && isPlainRest(d) ? DAYS[i].name : null).filter(Boolean);
+  const asRest = [...empty, ...unconfirmed];
+  if (asRest.length && !confirm(`${asRest.join(", ")}: not confirmed yet.\n\nThese will be recorded as Rest Day. Publish?`)) return;
+  sheet.days.forEach(d => {
+    if (!d.roster) { d.roster = "rest"; d.actual = "none"; }
+    if (isPlainRest(d)) d.done = true;
+  });
 
   // Snapshot staff details onto the sheet so the library copy is self-contained.
   const p = state.profile;
@@ -1414,7 +1456,7 @@ async function publish() {
     $("declaration").checked = false;
     saveState();
     renderTimesheet();
-    $("publishedText").textContent = `${files[0].name} (locked PDF) has been downloaded and saved to your library.`;
+    $("publishedText").textContent = `${files[0].name} has been downloaded and saved to your library.`;
     $("publishedDialog").showModal();
   } catch (err) {
     console.error(err);
@@ -1939,7 +1981,7 @@ function openSendDialog(id) {
   if (!sheet) return;
   ui.sendId = id;
   const p = state.profile;
-  $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${amendLabel(sheet) ? ` · ${amendLabel(sheet)}` : ""} · ${fileName(sheet)}`;
+  $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${amendLabel(sheet) ? ` · ${amendLabel(sheet)}` : ""} · ${fileName(sheet).replace(/\.xlsx$/, ".pdf")}`;
   const opts = recipientOptions();
   const group = (title, items, emptyText) => `
     <div class="send-group">
@@ -1959,11 +2001,26 @@ function openSendDialog(id) {
       `${ROLE_LABEL[role]}${ROLE_TITLE[role] ? ` <small class="role-title">${ROLE_TITLE[role]}</small>` : ""}`,
       opts.filter(r => r.role === role), `No ${ROLE_PLURAL[role]} added yet.`)).join("") +
     group("Me", opts.filter(r => r.role === "me"), "");
-  const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })] }));
+  // Build the PDF now, so the tap on "send" can hand it over instantly
+  // (phones only allow sharing straight after a tap).
+  ui.sendFiles = null;
+  const testPdf = new File(["%PDF-1.4"], "t.pdf", { type: "application/pdf" });
+  const canShare = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [testPdf] }));
   $("sendShareBtn").hidden = !canShare;
-  $("sendHow").textContent = canShare
-    ? "Open email: your email app opens with the addresses and subject filled in, and the PDF is downloaded for you to attach. Share file: attaches the PDF directly; the ticked addresses are copied so you can paste them in."
-    : "Your email app opens with the addresses and subject filled in. The PDF is downloaded at the same time — attach it, then press Send.";
+  $("sendShareBtn").textContent = "Email with PDF attached";
+  $("sendShareBtn").className = "btn btn--primary";
+  $("sendEmailBtn").textContent = canShare ? "Open email (attach PDF yourself)" : "Open email";
+  $("sendEmailBtn").className = canShare ? "btn" : "btn btn--primary";
+  [$("sendShareBtn"), $("sendEmailBtn")].forEach(b => { b.disabled = true; });
+  $("sendHow").textContent = "Preparing the PDF…";
+  buildFiles(sheet, chosenFormats()).then(files => {
+    if (ui.sendId !== id) return;
+    ui.sendFiles = files;
+    [$("sendShareBtn"), $("sendEmailBtn")].forEach(b => { b.disabled = false; });
+    $("sendHow").textContent = canShare
+      ? "Email with PDF attached: pick your email app and the PDF is already attached. The addresses are copied — paste them into To."
+      : "Your email app opens with the addresses and subject filled in. The PDF is downloaded at the same time — attach it from Downloads, then press Send.";
+  }).catch(err => { $("sendHow").textContent = "The PDF couldn't be created: " + err.message; });
   const sends = sheet.sends || [];
   $("sendLog").innerHTML = sends.length ? `
     <div class="send-log"><strong>Previously sent</strong>
@@ -1991,10 +2048,11 @@ function recordSend(sheet, rec) {
   renderLibrary();
 }
 
-async function sendSheet(method) {
+// Called straight from the tap — no waiting before navigator.share, or phones block it.
+function sendSheet(method) {
   const sheet = state.sheets.find(s => s.id === ui.sendId);
-  if (!sheet) return;
-  const files = await buildFiles(sheet, chosenFormats());
+  const files = ui.sendFiles;
+  if (!sheet || !files) return toast("Still preparing the PDF — try again in a second.", true);
   const rec = { ...chosenRecipients(), at: new Date().toISOString(), method, files: files.map(f => f.name) };
   const { subject, body } = emailText(sheet, rec);
   const toList = rec.to.map(r => r.email);
@@ -2002,15 +2060,18 @@ async function sendSheet(method) {
 
   if (method === "share") {
     const addresses = [...toList, ...ccList].join("; ");
-    try { if (addresses) await navigator.clipboard.writeText(addresses); } catch { /* clipboard not available */ }
-    try {
-      await navigator.share({ files, title: subject, text: body });
-    } catch (err) {
-      if (err.name === "AbortError") return toast("Not sent.");
-      throw err;
-    }
-    recordSend(sheet, rec);
-    return toast(addresses ? "Shared. Addresses were copied — paste them into the To box." : "Shared.");
+    if (addresses && navigator.clipboard) navigator.clipboard.writeText(addresses).catch(() => {});
+    navigator.share({ files, title: subject, text: body })
+      .then(() => {
+        recordSend(sheet, rec);
+        toast(addresses ? "Sent to your email app with the PDF attached. Paste the addresses into To." : "Shared with the PDF attached.");
+      })
+      .catch(err => {
+        if (err.name === "AbortError") return toast("Not sent.");
+        console.error(err);
+        alert("Your phone wouldn't share the PDF (" + err.message + ").\n\nUse “Open email” instead — the PDF will download for you to attach.");
+      });
+    return;
   }
 
   downloadFiles(files);
@@ -2068,7 +2129,7 @@ function renderLibrary() {
       </div>
       <details class="lib-item__more"><summary>More</summary>
         <button class="btn btn--small btn--ghost" data-download="${esc(s.id)}" data-format="xlsx">Export as Excel</button>
-        <span class="hint">Editable copy for your own records. What you send is the locked PDF.</span>
+        <span class="hint">Editable copy for your own records. What you send is the PDF.</span>
       </details>
       <details class="lib-item__history"><summary>History</summary>
         <ul>${s.history.slice().reverse().map(h => `<li><time>${esc(new Date(h.at).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}</time> ${esc(h.action)}</li>`).join("")}</ul>
@@ -2173,7 +2234,7 @@ function importBackup(e) {
 function bind() {
   document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-show-rest],[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
+    const t = e.target.closest("[data-rest-ok],[data-rest-worked],[data-done],[data-goto],[data-open],[data-share],[data-download],[data-revise],[data-delete],[data-toggle],[data-chip],[data-copy-next],[data-clear-day]");
     if (!t) return;
     const ds = t.dataset;
     if (ds.goto) { e.preventDefault(); if (ds.closeSend !== undefined) $("sendDialog").close("cancel"); showTab(ds.goto); }
@@ -2198,7 +2259,8 @@ function bind() {
     }
     else if (ds.copyNext !== undefined) copyToNext(Number(ds.copyNext));
     else if (ds.done !== undefined) markDone(Number(ds.done));
-    else if (ds.showRest !== undefined) { ui.showRest = !ui.showRest; renderDays(currentSheet()); }
+    else if (ds.restOk !== undefined) confirmRest(Number(ds.restOk));
+    else if (ds.restWorked !== undefined) workedRest(Number(ds.restWorked));
     else if (ds.clearDay !== undefined) clearDay(Number(ds.clearDay));
   });
 
@@ -2268,7 +2330,8 @@ function bind() {
       e.preventDefault();
       return toast("Tick at least one person to send to.", true);
     }
-    sendSheet(method).catch(err => alert("Couldn't send: " + err.message));
+    if (!ui.sendFiles) { e.preventDefault(); return toast("Still preparing the PDF — one moment.", true); }
+    sendSheet(method);
   });
 
   // Keep several open tabs in sync so a stale tab never overwrites newer data.
