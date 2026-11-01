@@ -28,6 +28,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Finished early:** pick how long, in 15-minute steps. The app works out the finish time and hours worked, and asks why: Certified Sick Leave, Self-Certified Sick Leave, Force Majeure – Family Emergency, or Other (with a note). The reason goes in column M on that day's row, for example "Finished early 16:15 – Certified Sick Leave".
   - **Extended duty:** pick how long. The actual finish and the overtime (rostered finish → new finish) are filled in for you. Enter the incident number, which goes on the sheet as **"Ext Duty 1234567"**.
   - **Comp rest / late start:** pick how much later you started. The finish stays as rostered and the hours are worked out. Then choose **Compensatory Rest** or **Late Start** (with an optional note). Column M shows "Comp rest – start 10:00" or "Late start 08:30 – previous call".
+  - **Part leave / part worked:** for example a 07:00–19:00 shift where you took leave but worked a 1-hour meeting. Choose the leave type and the time you worked (e.g. 08:00–09:00, plus an optional "Meeting"). The app works out the leave: 12h − 1h = **11h**. The Actual row shows 08:00–09:00, and column M shows "Annual Leave 11h – Meeting 08:00–09:00".
   - **Other times**, **Leave**, or **Not worked**.
 - **Box off a day:** tap **✓ Done – next day** at the bottom of a day.
   - The app checks the day for anything missing (incident number, reasons, vehicle and so on).
