@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-2";
+const APP_VERSION = "2026.11.02-3";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -263,6 +263,8 @@ function blankDay(dateIso) {
     partFrom: "",        //   …the part actually worked
     partTo: "",
     partNote: "",        //   …what it was (e.g. Meeting)
+    workType: "",        // rest day worked: "ot" (overtime) or "toil"
+    toilNote: "",
     partRostered: false, //   ticked → Roster row shows the leave instead of the shift times
     actualLeave: "",
     actualFrom: "",
@@ -326,6 +328,11 @@ function resolvedActual(d) {
 function autoOvertime(d) {
   if (!d.otAuto) return;
   if (d.actual === "partleave") { d.ot = false; d.otFrom = ""; d.otTo = ""; return; }
+  if (isRestWorked(d)) {
+    const ot = restWorkType(d) === "ot" && isTime(d.actualFrom) && isTime(d.actualTo);
+    d.ot = ot; d.otFrom = ot ? d.actualFrom : ""; d.otTo = ot ? d.actualTo : "";
+    return;
+  }
   const a = resolvedActual(d);
   const ok = d.roster === "times" && a.kind === "times" &&
     [d.rosterFrom, d.rosterTo, a.from, a.to].every(isTime) &&
@@ -344,6 +351,10 @@ function autoOvertime(d) {
 
 // "Ext Duty 1234567" → "1234567" (so the prefix is never doubled up).
 function stripExtDuty(v) { return String(v || "").trim().replace(/^ext\.?\s*duty[:\s-]*/i, ""); }
+
+// Rest day worked: overtime or TOIL ("" = not chosen yet; older saved days count as overtime).
+function restWorkType(d) { return d.workType === undefined ? "ot" : d.workType; }
+function isRestWorked(d) { return d.roster === "rest" && d.actual === "times"; }
 
 // Part leave / part worked: minutes of leave = rostered shift − time worked.
 function partLeaveMins(d) {
@@ -391,6 +402,10 @@ function excelCells(d) {
   if (d.actual === "partleave" && d.roster === "times" && d.partLeave && isTime(d.partFrom) && isTime(d.partTo)) {
     const shiftTxt = d.partRostered === true ? ` (rostered ${d.rosterFrom}–${d.rosterTo})` : "";
     const note = `${d.partLeave} ${fmtDur(partLeaveMins(d))}${shiftTxt} – ${d.partNote.trim() || "Worked"} ${d.partFrom}–${d.partTo}`;
+    c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
+  }
+  if (isRestWorked(d) && restWorkType(d) === "toil" && isTime(d.actualFrom) && isTime(d.actualTo)) {
+    const note = `TOIL ${d.actualFrom}–${d.actualTo}${(d.toilNote || "").trim() ? ` – ${d.toilNote.trim()}` : ""}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   if (d.actual === "late" && d.roster === "times" && d.lateReason) {
@@ -1038,6 +1053,7 @@ function workedRest(i) {
   if (!sheet) return;
   const d = sheet.days[i];
   d.actual = "times";
+  d.workType = "";          // user picks Overtime or TOIL
   d.done = false;
   ui.expanded.add(i);
   touch(sheet, `${DAYS[i].short} rest day worked`);
@@ -1045,7 +1061,7 @@ function workedRest(i) {
   rerenderDay(i);
   renderProgress(sheet);
   document.querySelector(`[data-day-card="${i}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  toast("Enter the times you worked, and overtime if it applies.");
+  toast("Choose Overtime or TOIL, then the times you worked.");
 }
 
 function rerenderDay(i) {
@@ -1087,8 +1103,11 @@ function dayChips(d) {
     else if (d.actual === "times" && a.kind === "times") chips.push([`Actual ${a.from}–${a.to}`, "chip-plain"]);
     else if (d.actual === "leave") chips.push([d.actualLeave || "Leave?", "chip-leave"]);
     else if (d.actual === "none") chips.push(["Not worked", "chip-plain"]);
-  } else if (d.roster === "rest" && a.kind === "times") chips.push([`Worked ${a.from}–${a.to}`, "chip-ot"]);
-  if (d.ot) chips.push([`OT ${d.otFrom}–${d.otTo}`, "chip-ot"]);
+  } else if (d.roster === "rest" && a.kind === "times") {
+    const wt = restWorkType(d);
+    chips.push([wt === "toil" ? `TOIL ${a.from}–${a.to}` : wt === "ot" ? `Worked OT ${a.from}–${a.to}` : "Worked – OT or TOIL?", wt ? "chip-ot" : "chip-warn"]);
+  }
+  if (d.ot && !isRestWorked(d)) chips.push([`OT ${d.otFrom}–${d.otTo}`, "chip-ot"]);
   if (d.ot && !d.otReason.trim()) chips.push(["Incident no. needed", "chip-warn"]);
   if (d.subs) chips.push(["Subsistence", "chip-subs"]);
   return chips;
@@ -1118,7 +1137,7 @@ function dayCard(d, i) {
     ${d.done ? "" : `
     <div class="rest-actions">
       <button type="button" class="btn btn--small btn--primary" data-rest-ok="${i}">✓ Rest day</button>
-      <button type="button" class="btn btn--small" data-rest-worked="${i}">Worked</button>
+      <button type="button" class="btn btn--small" data-rest-worked="${i}">Worked (OT / TOIL)</button>
     </div>`}
   </article>`;
   }
@@ -1182,7 +1201,11 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
     isTimes ? opt("extended", "Extended duty (finished late)", d.actual === "extended") : "",
     isTimes ? opt("late", "Comp rest / late start", d.actual === "late") : "",
     d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
-    opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
+    d.roster === "rest"
+      ? (isRestWorked(d) && !restWorkType(d) ? opt("times", "Worked – choose Overtime or TOIL", true) : "") +
+        opt("rest-ot", "Worked – Overtime", isRestWorked(d) && restWorkType(d) === "ot") +
+        opt("rest-toil", "Worked – TOIL", isRestWorked(d) && restWorkType(d) === "toil")
+      : opt("times", "Other times (e.g. started late)", d.actual === "times"),
     opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none"),
     `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}${isTimes ? opt("partleave", "Leave + part shift / meeting", d.actual === "partleave") : ""}</optgroup>`
   ].join("");
@@ -1256,7 +1279,13 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
       <div class="field"><label>Actual from</label>${timeSelect("actualFrom", i, d.actualFrom)}</div>
       <div class="field"><label>Actual to</label>${timeSelect("actualTo", i, d.actualTo)}</div>
       <div class="field"><label>Hours</label><select data-f="actualHours" data-i="${i}">${durOptions(shiftMins(d.actualFrom, d.actualTo), 24 * 60, "hrs")}</select></div>
-    </div>` : ""}
+    </div>
+    ${isRestWorked(d) && restWorkType(d) === "toil" ? `
+    <div class="field">
+      <label>TOIL note <span class="opt">optional</span></label>
+      <input type="text" data-f="toilNote" data-i="${i}" value="${esc(d.toilNote || "")}" placeholder="e.g. incident number, cover">
+    </div>
+    <p class="hint">Recorded as TOIL in the notes column, not as paid overtime.</p>` : ""}` : ""}
 
 
     ${isSwap ? `
@@ -1323,7 +1352,7 @@ function onDayInput(e) {
   const d = sheet.days[i];
 
   // Plain text fields: save without re-rendering (keeps the keyboard open).
-  const textFields = ["otReason", "subsLocation", "subsVehicle", "swapNote", "earlyNote", "lateNote", "partNote"];
+  const textFields = ["otReason", "subsLocation", "subsVehicle", "swapNote", "earlyNote", "lateNote", "partNote", "toilNote"];
   if (textFields.includes(f)) {
     d[f] = el.value;
     if (["otReason", "earlyNote"].includes(f)) el.classList.toggle("needs", !el.value.trim());
@@ -1362,7 +1391,11 @@ function onDayInput(e) {
       break;
     }
     case "actual": {
-      if (el.value.startsWith("leave:")) { d.actual = "leave"; d.actualLeave = el.value.slice(6); }
+      if (el.value === "rest-ot" || el.value === "rest-toil") {
+        d.actual = "times"; d.workType = el.value === "rest-ot" ? "ot" : "toil"; d.otAuto = true;
+        if (!d.actualFrom) { d.actualFrom = ""; d.actualTo = ""; }
+      }
+      else if (el.value.startsWith("leave:")) { d.actual = "leave"; d.actualLeave = el.value.slice(6); }
       else d.actual = el.value;
       if (d.actual === "times" && !d.actualFrom) { d.actualFrom = d.rosterFrom; d.actualTo = d.rosterTo; }
       if ((d.actual === "early" || d.actual === "late") && d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) d.actualMins = 0;
@@ -1435,7 +1468,7 @@ function copyToNext(i) {
   const src = sheet.days[i];
   const dst = sheet.days[i + 1];
   const keep = { date: dst.date };
-  Object.assign(dst, structuredClone(src), keep, { done: false, otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", partNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
+  Object.assign(dst, structuredClone(src), keep, { done: false, otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", partNote: "", toilNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
   if (!dst.otAuto) { dst.ot = false; dst.otFrom = ""; dst.otTo = ""; dst.otAuto = true; }
   autoOvertime(dst);
   touch(sheet, `Copied ${DAYS[i].short} → ${DAYS[i + 1].short}`);
@@ -1537,6 +1570,7 @@ function dayErrors(d, i) {
     if (d.roster === "times" && !(isTime(d.rosterFrom) && isTime(d.rosterTo))) errors.push(`${n}: rostered start and finish times are needed.`);
     if (d.roster === "leave" && !d.rosterLeave) errors.push(`${n}: choose the leave type.`);
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
+    if (isRestWorked(d) && !restWorkType(d)) errors.push(`${n}: choose whether the rest day was worked as Overtime or TOIL.`);
     if (d.roster && d.actual === "leave" && !d.actualLeave) errors.push(`${n}: choose the leave type under Actual.`);
     if (d.roster === "times" && d.actual === "early") {
       if (!d.actualMins) errors.push(`${n}: how early did you finish?`);
