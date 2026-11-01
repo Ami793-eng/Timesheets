@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.02-4">
+  <link rel="stylesheet" href="styles.css?v=2026.11.02-5">
 </head>
 <body>
   <header class="app-header">
@@ -298,7 +298,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.02-4</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.02-5</span></p>
       </div>
     </section>
   </main>
@@ -349,12 +349,13 @@
   </dialog>
 
   <datalist id="vehicleList"></datalist>
+  <datalist id="workNoteList"><option value="Meeting"><option value="Training"><option value="Cover"></datalist>
   <datalist id="partNoteList"><option value="Meeting"><option value="Part shift"><option value="Training"></datalist>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.02-4"></script>
+  <script src="app.js?v=2026.11.02-5"></script>
 </body>
 </html>

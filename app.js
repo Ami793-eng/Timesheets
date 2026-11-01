@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-4";
+const APP_VERSION = "2026.11.02-5";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -326,6 +326,12 @@ function resolvedActual(d) {
 
 // Overtime rule from the spec: same start, later finish → OT from roster finish to actual finish.
 function autoOvertime(d) {
+  if (isRestWorked(d)) {
+    // Rest day worked (Overtime or TOIL): overtime From/To always match the actual times.
+    const ot = !!restWorkType(d) && isTime(d.actualFrom) && isTime(d.actualTo);
+    d.ot = ot; d.otFrom = ot ? d.actualFrom : ""; d.otTo = ot ? d.actualTo : "";
+    return;
+  }
   if (!d.otAuto) return;
   if (d.actual === "partleave") { d.ot = false; d.otFrom = ""; d.otTo = ""; return; }
   if (isRestWorked(d)) {
@@ -1284,7 +1290,7 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
     ${isRestWorked(d) && restWorkType(d) === "toil" ? `
     <div class="field">
       <label>TOIL note <span class="opt">optional</span></label>
-      <input type="text" data-f="toilNote" data-i="${i}" value="${esc(d.toilNote || "")}" placeholder="e.g. incident number, cover">
+      <input type="text" data-f="toilNote" data-i="${i}" value="${esc(d.toilNote || "")}" list="workNoteList" placeholder="e.g. Meeting, cover">
     </div>
     <p class="hint">Overtime columns are filled in as normal; the notes column says “Bank TOIL”.</p>` : ""}` : ""}
 
@@ -1295,7 +1301,20 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
       <input type="text" data-f="swapNote" data-i="${i}" value="${esc(d.swapNote)}" placeholder="Swapped with / reason">
     </div>` : ""}
 
+    ${isRestWorked(d) && restWorkType(d) ? `
+    <fieldset class="sub" aria-label="Overtime">
+      <div class="toggle-row"><span class="toggle-row__label">Overtime</span>
+        <span class="chip2 chip-ot">${isTime(d.actualFrom) && isTime(d.actualTo) ? `${esc(d.actualFrom)}–${esc(d.actualTo)} · ${fmtDur(shiftMins(d.actualFrom, d.actualTo))}` : "enter the times above"}</span></div>
+      <p class="hint">Overtime From/To always match the actual times on a worked rest day.</p>
+      ${restWorkType(d) === "ot" ? `
+      <div class="field">
+        <label>Reason / incident number <span class="req">required</span></label>
+        <input type="text" data-f="otReason" data-i="${i}" value="${esc(d.otReason)}" list="workNoteList" placeholder="e.g. Meeting, incident number" class="${d.otReason.trim() ? "" : "needs"}">
+      </div>` : ""}
+    </fieldset>` : ""}
+
     ${d.roster ? `
+    ${isRestWorked(d) && restWorkType(d) ? "" : `
     <fieldset class="sub" aria-label="Overtime worked?">
       <div class="toggle-row"><span class="toggle-row__label">Overtime worked?</span>
       <div class="segmented segmented--compact">
@@ -1317,7 +1336,7 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
         <label>Incident number / reason <span class="req">required</span></label>
         <input type="text" data-f="otReason" data-i="${i}" value="${esc(d.otReason)}" placeholder="e.g. incident number, late call" class="${d.otReason.trim() ? "" : "needs"}">`}
       </div>`}` : ""}
-    </fieldset>
+    </fieldset>`}
 
     <fieldset class="sub" aria-label="Subsistence?">
       <div class="toggle-row"><span class="toggle-row__label">Subsistence?</span>

@@ -34,7 +34,8 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Leave:** Annual Leave, Parental Leave, Self-Certified or Certified Sick Leave, Force Majeure, Study Leave or Shift Swap. The leave type goes in the Actual row.
   - **Other times** or **Not worked**.
   - **Rest day worked:** tap **Worked (OT / TOIL)** on the rest day, then choose **Worked – Overtime** or **Worked – TOIL** and enter the times.
-    - **Overtime:** the overtime columns are filled with the times worked, and an incident number / reason is required.
+    - Overtime From/To always match the actual times. This includes a meeting or training on a rest day, for example 10:00–11:00. The reason box suggests Meeting, Training or Cover.
+    - **Overtime:** the overtime columns are filled with the times worked, and a reason or incident number is required (e.g. "Meeting").
     - **TOIL:** the overtime columns are filled with the times worked as normal, and column M reads **"Bank TOIL"**, plus an optional note (e.g. "Bank TOIL – Cover"). No incident number is needed.
 - **Box off a day:** tap **✓ Done – next day** at the bottom of a day.
   - The app checks the day for anything missing (incident number, reasons, vehicle and so on).
