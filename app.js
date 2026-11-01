@@ -1232,7 +1232,8 @@ function downloadFile(file) {
 // Role names shown in the app, emails and logs. ("orm" is just the internal key.)
 const ROLE_LABEL = { orm: "ORM", dcm: "DCM", sup: "Supervisor" };
 const ROLE_PLURAL = { orm: "ORMs", dcm: "DCMs", sup: "supervisors" };
-const ROLE_TITLE = { orm: "", dcm: "Duty Control Manager", sup: "" };
+// Full titles (not displayed): ORM = Operational Resource Manager, DCM = Duty Control Manager.
+const ROLE_TITLE = { orm: "", dcm: "", sup: "" };
 const ROLES = ["orm", "dcm", "sup"];
 
 function newId() { return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
