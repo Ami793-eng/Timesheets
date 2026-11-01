@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Timesheets">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=2026.11.01-18">
+  <link rel="stylesheet" href="styles.css?v=2026.11.01-20">
 </head>
 <body>
   <header class="app-header">
@@ -269,7 +269,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.01-18</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.01-20</span></p>
       </div>
     </section>
   </main>
@@ -278,7 +278,7 @@
   <dialog id="publishedDialog">
     <form method="dialog" class="dialog">
       <h3>Timesheet published</h3>
-      <p id="publishedText">The PDF and Excel files have been downloaded and saved to your library.</p>
+      <p id="publishedText">The locked PDF has been downloaded and saved to your library.</p>
       <div class="actions">
         <button class="btn btn--primary" value="email">Email it now</button>
         <button class="btn" value="download">Download again</button>
@@ -293,11 +293,6 @@
       <h3>Email timesheet</h3>
       <p class="muted" id="sendWhat"></p>
       <div class="send-boxes" id="sendBoxes"></div>
-      <div class="send-files" id="sendFiles">
-        <span class="send-group__title">Attach</span>
-        <label><input type="checkbox" id="sendPdf" checked> PDF</label>
-        <label><input type="checkbox" id="sendXlsx" checked> Excel</label>
-      </div>
       <div class="email-preview" id="sendPreview" aria-live="polite"></div>
       <p class="hint" id="sendHow"></p>
       <div class="actions">
@@ -329,6 +324,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.01-18"></script>
+  <script src="app.js?v=2026.11.01-20"></script>
 </body>
 </html>

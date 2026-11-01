@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-18";
+const APP_VERSION = "2026.11.01-20";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1406,7 +1406,7 @@ async function publish() {
   try {
     sheet.status = "published";
     sheet.publishedAt = new Date().toISOString();
-    const files = await buildFiles(sheet, { pdf: true, xlsx: true });
+    const files = await buildFiles(sheet, { pdf: true, xlsx: false });
     downloadFiles(files);
     touch(sheet, amendLabel(sheet) ? `Published (${amendLabel(sheet)})` : "Published");
     state.currentId = null;
@@ -1414,7 +1414,7 @@ async function publish() {
     $("declaration").checked = false;
     saveState();
     renderTimesheet();
-    $("publishedText").textContent = `${files.map(f => f.name).join(" and ")} ${files.length > 1 ? "have" : "has"} been downloaded and saved to your library.`;
+    $("publishedText").textContent = `${files[0].name} (locked PDF) has been downloaded and saved to your library.`;
     $("publishedDialog").showModal();
   } catch (err) {
     console.error(err);
@@ -1617,7 +1617,12 @@ function sheetExtent(ws) {
 
 async function renderWorksheetPdf(wb, ws) {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  // Locked: opens without a password, can be printed, but not edited in normal PDF readers.
+  const ownerKey = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
+  const doc = new jsPDF({
+    orientation: "landscape", unit: "mm", format: "a4",
+    encryption: { userPassword: "", ownerPassword: ownerKey, userPermissions: ["print"] }
+  });
   const { rows, cols } = sheetExtent(ws);
   const PX = 0.2646;                                         // mm per pixel at 96 dpi
   const defW = ws.properties.defaultColWidth || 8.43;
@@ -1756,8 +1761,7 @@ async function buildPdfFile(sheet, suffix = "") {
 
 // Which files to attach/download, from the user's last choice (default: both).
 function chosenFormats() {
-  const p = state.profile;
-  return { pdf: p.attachPdf !== false, xlsx: p.attachXlsx !== false };
+  return { pdf: true, xlsx: false };   // published timesheets go out as a locked PDF only
 }
 async function buildFiles(sheet, formats = chosenFormats(), suffix = "") {
   const files = [];
@@ -1918,7 +1922,7 @@ function renderSendPreview() {
   $("sendPreview").innerHTML = `
     ${line("To:", rec.to)}${line("CC:", rec.cc)}
     <div><span class="k">Subject:</span> ${esc(subject)}</div>
-    <div><span class="k">Attach:</span> ${[$("sendPdf").checked ? "PDF" : "", $("sendXlsx").checked ? "Excel" : ""].filter(Boolean).join(" + ") || "<em>nothing ticked</em>"}</div>
+    <div><span class="k">Attach:</span> ${esc(fileName(sheet).replace(/\.xlsx$/, ".pdf"))}</div>
     <pre>${esc(body)}</pre>`;
 }
 
@@ -1957,15 +1961,12 @@ function openSendDialog(id) {
   const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })] }));
   $("sendShareBtn").hidden = !canShare;
   $("sendHow").textContent = canShare
-    ? "Open email: your email app opens with the addresses and subject filled in, and the file is downloaded for you to attach. Share file: attaches the file directly; the ticked addresses are copied so you can paste them in."
-    : "Your email app opens with the addresses and subject filled in. The Excel file is downloaded at the same time — attach it, then press Send.";
+    ? "Open email: your email app opens with the addresses and subject filled in, and the PDF is downloaded for you to attach. Share file: attaches the PDF directly; the ticked addresses are copied so you can paste them in."
+    : "Your email app opens with the addresses and subject filled in. The PDF is downloaded at the same time — attach it, then press Send.";
   const sends = sheet.sends || [];
   $("sendLog").innerHTML = sends.length ? `
     <div class="send-log"><strong>Previously sent</strong>
       <ul>${sends.slice().reverse().map(r => `<li>${esc(sendLine(r))}</li>`).join("")}</ul></div>` : "";
-  const fm = chosenFormats();
-  $("sendPdf").checked = fm.pdf;
-  $("sendXlsx").checked = fm.xlsx;
   renderSendPreview();
   $("sendDialog").showModal();
 }
@@ -1992,10 +1993,7 @@ function recordSend(sheet, rec) {
 async function sendSheet(method) {
   const sheet = state.sheets.find(s => s.id === ui.sendId);
   if (!sheet) return;
-  const formats = { pdf: $("sendPdf").checked, xlsx: $("sendXlsx").checked };
-  state.profile.attachPdf = formats.pdf;
-  state.profile.attachXlsx = formats.xlsx;
-  const files = await buildFiles(sheet, formats);
+  const files = await buildFiles(sheet, chosenFormats());
   const rec = { ...chosenRecipients(), at: new Date().toISOString(), method, files: files.map(f => f.name) };
   const { subject, body } = emailText(sheet, rec);
   const toList = rec.to.map(r => r.email);
@@ -2021,7 +2019,7 @@ async function sendSheet(method) {
   const url = `mailto:${toList.map(encodeURIComponent).join(",")}?${params.join("&")}`;
   console.info("Opening email:", url);
   setTimeout(() => { window.location.href = url; }, 300 + files.length * 600);
-  toast(`Email opened — attach ${files.map(f => f.name.endsWith(".pdf") ? "the PDF" : "the Excel file").join(" and ")} from Downloads.`);
+  toast("Email opened — attach the PDF from Downloads.");
 }
 
 /* ------------------------------------------------------------------ */
@@ -2064,10 +2062,13 @@ function renderLibrary() {
           <button class="btn btn--danger-ghost btn--small" data-delete="${esc(s.id)}">Delete</button>` : `
           <button class="btn btn--primary btn--small" data-share="${esc(s.id)}">Email</button>
           <button class="btn btn--small" data-download="${esc(s.id)}" data-format="pdf">PDF</button>
-          <button class="btn btn--small" data-download="${esc(s.id)}" data-format="xlsx">Excel</button>
           <button class="btn btn--small" data-revise="${esc(s.id)}">Revise</button>
           <button class="btn btn--danger-ghost btn--small" data-delete="${esc(s.id)}">Delete</button>`}
       </div>
+      <details class="lib-item__more"><summary>More</summary>
+        <button class="btn btn--small btn--ghost" data-download="${esc(s.id)}" data-format="xlsx">Export as Excel</button>
+        <span class="hint">Editable copy for your own records. What you send is the locked PDF.</span>
+      </details>
       <details class="lib-item__history"><summary>History</summary>
         <ul>${s.history.slice().reverse().map(h => `<li><time>${esc(new Date(h.at).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}</time> ${esc(h.action)}</li>`).join("")}</ul>
       </details>
@@ -2253,19 +2254,14 @@ function bind() {
     const v = $("publishedDialog").returnValue;
     const id = ui.lastPublishedId;
     if (v === "email") openSendDialog(id);
-    if (v === "download") buildFiles(state.sheets.find(s => s.id === id), { pdf: true, xlsx: true }).then(downloadFiles);
+    if (v === "download") buildPdfFile(state.sheets.find(s => s.id === id)).then(downloadFile);
   });
 
   $("sendBoxes").addEventListener("change", renderSendPreview);
-  $("sendFiles").addEventListener("change", renderSendPreview);
 
   $("sendForm").addEventListener("submit", e => {
     const method = e.submitter?.value;
     if (method !== "mail" && method !== "share") return; // cancel
-    if (!$("sendPdf").checked && !$("sendXlsx").checked) {
-      e.preventDefault();
-      return toast("Tick PDF and/or Excel to attach.", true);
-    }
     const { to, cc } = chosenRecipients();
     if (!to.length && !cc.length) {
       e.preventDefault();
