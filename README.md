@@ -18,7 +18,12 @@ Staff fill in their week (they can save it and come back during the week), publi
     - Carrick on Shannon and Manorhamilton: 08:00 / 20:00
     - Sligo: any listed shift
   - "Other" takes a start time plus either a finish time or a number of hours. The finish time is calculated, so 20:00 + 12 hours gives 08:00.
-- **Per-day editing:** set the rostered shift and the actual hours. Actual can be "worked as rostered", different times, a leave type, or not worked.
+- **Per-day editing:** set the rostered shift, then say how the shift ended:
+  - **Finished as rostered.**
+  - **Finished early:** pick how long, in 15-minute steps. The app works out the finish time and hours worked, and asks why: Certified Sick Leave, Self-Certified Sick Leave, Force Majeure – Family Emergency, or Other (with a note). The reason goes in column M on that day's row, for example "Finished early 16:15 – Certified Sick Leave".
+  - **Extended duty:** pick how long. The actual finish and the overtime (rostered finish → new finish) are filled in for you, and an incident number is required.
+  - **Other times** (for example started late), **Leave**, or **Not worked**.
+- **15-minute pickers:** every time and hours box scrolls in 15-minute steps.
 - **Overtime:** the Yes/No is set automatically when you started at the rostered time but finished later. OT runs from the rostered finish to the actual finish. It can also be set by hand. An **incident number / reason is required** before you can publish.
 - **Subsistence:** can be claimed on any day, with From, To, Rate and Location/Incident.
 - **Leave types:**
@@ -56,6 +61,10 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Sent log:** each timesheet records **"Sent by email to John Campbell (ORM), Joe Bloggs (DCM), Me · date and time"**. It's shown on the library card and in the History with the full addresses. The time is recorded when you open the email from the app; the app can't see whether you then pressed Send in your mail app.
 - **Library:** search and filter your timesheets (including by who they were sent to), download one again, or email it again.
 - **History:** each sheet keeps a log of what happened to it and when.
+- **Add to Home Screen:** a button in the header installs the app with its own icon, and it opens full screen.
+  - **Android / Chrome:** installs in one tap.
+  - **iPhone:** shows the steps (Safari → Share → Add to Home Screen).
+  - **Offline:** it also opens with no signal, using the last version it saw online.
 - **Backup:** export or import a backup file in My details.
 
 ## Excel cell map
@@ -103,6 +112,8 @@ If there's no `template.xlsx`, the app makes a basic sheet that uses the same ce
    - the `lib` folder
    - `template.xlsx`
    - the `fonts` folder
+   - the `icons` folder
+   - `manifest.webmanifest` and `sw.js`
    - `README.md`
 2. In the repository, go to **Settings → Pages**.
 3. Under *Build and deployment*, choose **Deploy from a branch**. Pick `main` and `/ (root)`, then click **Save**.
@@ -131,6 +142,7 @@ Then open http://localhost:8000.
 | `index.html` | Page structure: tabs, forms, buttons |
 | `styles.css` | Look and layout (mobile-first, supports dark mode) |
 | `app.js` | All behaviour: saving, shift rules, overtime, Excel export, library |
+| `manifest.webmanifest`, `sw.js`, `icons/` | Add to Home Screen, app icon and offline support |
 | `lib/exceljs.min.js` | Excel library (ExcelJS 4.4.0, MIT licence), bundled so there's no CDN dependency |
 | `template.xlsx` | The NAS timesheet template the app fills in |
 | `fonts/` | Handwriting fonts for typed signatures (open licences, see `fonts/LICENSES.txt`) |

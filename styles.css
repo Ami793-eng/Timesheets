@@ -315,3 +315,23 @@ dialog::backdrop { background: rgba(10, 20, 30, .45); }
 .send-group + .send-group { margin-top: 6px; }
 .send-group__title { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .role-title { font-weight: 500; font-size: .78rem; color: var(--muted); text-transform: none; letter-spacing: 0; margin-left: .3rem; }
+
+/* Early finish / extended duty summary */
+.calc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 12px; }
+.calc > div { background: var(--primary-soft); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; }
+.calc span { font-size: .75rem; color: var(--muted); }
+.calc strong { font-variant-numeric: tabular-nums; }
+select.needs { border-color: var(--danger); background-color: var(--warn-soft); }
+.time-select { font-variant-numeric: tabular-nums; }
+
+/* Add to Home Screen */
+.brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: .4rem; }
+.brand-row .brand { margin: 0; }
+.install-btn {
+  appearance: none; border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.14); color: inherit;
+  font: inherit; font-size: .82rem; font-weight: 700; padding: .35rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap;
+}
+.install-btn:hover { background: rgba(255,255,255,.24); }
+.steps { padding-left: 1.2rem; line-height: 1.6; }
+.ios-share { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 0 .3rem; }
+@media (display-mode: standalone) { .app-header { padding-top: env(safe-area-inset-top); } }

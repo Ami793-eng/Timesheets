@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-7";
+const APP_VERSION = "2026.11.01-9";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -72,6 +72,14 @@ const LEAVE_TYPES = [
   "Force Majeure",
   "Study Leave",
   "Shift Swap"
+];
+
+// Why someone finished a shift early.
+const EARLY_REASONS = [
+  "Certified Sick Leave",
+  "Self-Certified Sick Leave",
+  "Force Majeure – Family Emergency",
+  "Other"
 ];
 
 const DECLARATION =
@@ -182,6 +190,28 @@ function minsAfter(start, t) {
   return m;
 }
 
+function fmtDur(mins) {
+  const m = Math.round(Number(mins) || 0);
+  const h = Math.floor(m / 60), r = m % 60;
+  return h && r ? `${h}h ${r}m` : h ? `${h}h` : `${r}m`;
+}
+function shiftMins(from, to) { return isTime(from) && isTime(to) ? minsAfter(from, to) : 0; }
+
+// <option>s for a time picker in 15-minute steps (keeps an existing off-grid value).
+function timeOptions(value) {
+  let html = opt("", "--:--", !value);
+  if (value && toMin(value) % 15) html += opt(value, value, true);
+  for (let m = 0; m < 1440; m += 15) { const t = fromMin(m); html += opt(t, t, t === value); }
+  return html;
+}
+// <option>s for a duration picker in 15-minute steps, from 15 min up to `maxMins`.
+function durOptions(value, maxMins, placeholder = "— Select —") {
+  let html = opt("", placeholder, !value);
+  for (let m = 15; m <= maxMins; m += 15) html += opt(String(m), fmtDur(m), Number(value) === m);
+  return html;
+}
+function timeSelect(f, i, value) { return `<select data-f="${f}" data-i="${i}" class="time-select">${timeOptions(value)}</select>`; }
+
 /* ------------------------------------------------------------------ */
 /* Timesheet model                                                     */
 /* ------------------------------------------------------------------ */
@@ -194,7 +224,10 @@ function blankDay(dateIso) {
     rosterLeave: "",
     rosterFrom: "",
     rosterTo: "",
-    actual: "same",      // same | times | leave | none
+    actual: "same",      // same | early | extended | times | leave | none
+    actualMins: 0,       // how long early / extended, in minutes (15-min steps)
+    earlyReason: "",     // why finished early
+    earlyNote: "",       // free text when reason is "Other"
     actualLeave: "",
     actualFrom: "",
     actualTo: "",
@@ -235,6 +268,11 @@ function resolvedActual(d) {
     if (roster === "times") return { kind: "times", from: d.rosterFrom, to: d.rosterTo };
     if (roster === "leave") return { kind: "leave", label: d.rosterLeave };
     return { kind: "none" };
+  }
+  if ((d.actual === "early" || d.actual === "extended") && roster === "times") {
+    const mins = Number(d.actualMins) || 0;
+    const to = isTime(d.rosterTo) ? fromMin(toMin(d.rosterTo) + (d.actual === "early" ? -mins : mins)) : "";
+    return { kind: "times", from: d.rosterFrom, to };
   }
   if (d.actual === "times") return { kind: "times", from: d.actualFrom, to: d.actualTo };
   if (d.actual === "leave") return { kind: "leave", label: d.actualLeave };
@@ -277,6 +315,13 @@ function excelCells(d) {
     c.otTo = d.otTo;
     c.otReason = d.otReason.trim();
   }
+  // Early finish: the template has no separate column, so the reason goes in the
+  // O/T reason column (M) on that day's row (it's otherwise empty when there's no OT).
+  if (d.actual === "early" && d.roster === "times" && d.earlyReason) {
+    const why = d.earlyReason === "Other" ? (d.earlyNote.trim() || "Other") : d.earlyReason;
+    const note = `Finished early ${c.aTo} – ${why}`;
+    c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
+  }
   const isSwap = d.rosterLeave === "Shift Swap" || d.actualLeave === "Shift Swap";
   if (isSwap && d.swapNote.trim()) {
     const note = `Shift Swap: ${d.swapNote.trim()}`;
@@ -291,7 +336,13 @@ function daySummary(d) {
   if (d.roster === "rest" && resolvedActual(d).kind === "none") return { text: "Rest Day", cls: "is-rest" };
   let text = d.roster === "times" ? `${c.rFrom}–${c.rTo}` : c.rFrom;
   const a = resolvedActual(d);
-  if (d.actual !== "same") {
+  if (d.actual === "early" && d.actualMins) {
+    text += ` · finished ${a.to} (${fmtDur(d.actualMins)} early${d.earlyReason ? `, ${d.earlyReason === "Other" ? (d.earlyNote || "other") : d.earlyReason}` : ""})`;
+  } else if (d.actual === "extended" && d.actualMins) {
+    text += ` · extended to ${a.to} (+${fmtDur(d.actualMins)})`;
+  } else if (d.actual === "early" || d.actual === "extended") {
+    text += ` · ${d.actual === "early" ? "finished early" : "extended"} – how long?`;
+  } else if (d.actual !== "same") {
     if (a.kind === "times") text += ` · actual ${a.from}–${a.to}`;
     else if (a.kind === "leave") text += ` · actual: ${a.label}`;
     else if (d.roster !== "rest") text += " · not worked";
@@ -733,7 +784,7 @@ function applyQuickFill() {
   let otherStart = null, otherFinish = null;
   if (value === "other") {
     otherStart = $("qOtherStart").value;
-    otherFinish = $("qOtherFinish").value || addHours(otherStart, $("qOtherHours").value);
+    otherFinish = $("qOtherFinish").value || addHours(otherStart, Number($("qOtherHours").value) / 60);
     if (!isTime(otherStart) || !isTime(otherFinish)) return toast("Enter a start time and a finish time (or hours).", true);
   }
   const actualMode = document.querySelector('input[name="qActual"]:checked').value;
@@ -803,10 +854,14 @@ function dayEditor(d, i) {
   const isTimes = d.roster === "times";
   const isSwap = d.rosterLeave === "Shift Swap" || (d.actual === "leave" && d.actualLeave === "Shift Swap");
 
+  const shiftLen = shiftMins(d.rosterFrom, d.rosterTo);
+  const a = resolvedActual(d);
   const actualOpts = [
-    isTimes ? opt("same", "Worked as rostered", d.actual === "same") : "",
+    isTimes ? opt("same", "Finished as rostered", d.actual === "same") : "",
+    isTimes ? opt("early", "Finished early", d.actual === "early") : "",
+    isTimes ? opt("extended", "Extended duty (finished late)", d.actual === "extended") : "",
     d.roster === "leave" ? opt("same", `Same as roster (${d.rosterLeave})`, d.actual === "same") : "",
-    opt("times", d.roster === "rest" ? "Worked (called in)" : "Different times", d.actual === "times"),
+    opt("times", d.roster === "rest" ? "Worked (called in)" : "Other times (e.g. started late)", d.actual === "times"),
     opt("leave", "Leave / other", d.actual === "leave"),
     opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none")
   ].join("");
@@ -826,9 +881,9 @@ function dayEditor(d, i) {
 
     ${isTimes ? `
     <div class="grid-3">
-      <div class="field"><label>Roster from</label><input type="time" data-f="rosterFrom" data-i="${i}" value="${esc(d.rosterFrom)}"></div>
-      <div class="field"><label>Roster to</label><input type="time" data-f="rosterTo" data-i="${i}" value="${esc(d.rosterTo)}"></div>
-      <div class="field"><label>or hours</label><input type="number" min="0.25" max="24" step="0.25" inputmode="decimal" data-f="rosterHours" data-i="${i}" placeholder="hrs"></div>
+      <div class="field"><label>Roster from</label>${timeSelect("rosterFrom", i, d.rosterFrom)}</div>
+      <div class="field"><label>Roster to</label>${timeSelect("rosterTo", i, d.rosterTo)}</div>
+      <div class="field"><label>Hours</label><select data-f="rosterHours" data-i="${i}">${durOptions(shiftLen, 24 * 60, "hrs")}</select></div>
     </div>` : ""}
 
     ${d.roster ? `
@@ -837,11 +892,35 @@ function dayEditor(d, i) {
       <select data-f="actual" data-i="${i}">${actualOpts}</select>
     </div>` : ""}
 
+    ${isTimes && (d.actual === "early" || d.actual === "extended") ? `
+    <div class="grid-2">
+      <div class="field">
+        <label>${d.actual === "early" ? "Finished early by" : "Extended by"}</label>
+        <select data-f="actualMins" data-i="${i}" class="${d.actualMins ? "" : "needs"}">${durOptions(d.actualMins, d.actual === "early" ? Math.max(15, shiftLen - 15) : 12 * 60)}</select>
+      </div>
+      ${d.actual === "early" ? `
+      <div class="field">
+        <label>Reason <span class="req">required</span></label>
+        <select data-f="earlyReason" data-i="${i}" class="${d.earlyReason ? "" : "needs"}">${opt("", "— Select —", !d.earlyReason)}${EARLY_REASONS.map(r => opt(r, r, d.earlyReason === r)).join("")}</select>
+      </div>` : ""}
+    </div>
+    ${d.actual === "early" && d.earlyReason === "Other" ? `
+    <div class="field">
+      <label>Reason (details) <span class="req">required</span></label>
+      <input type="text" data-f="earlyNote" data-i="${i}" value="${esc(d.earlyNote)}" placeholder="Why did you finish early?" class="${d.earlyNote.trim() ? "" : "needs"}">
+    </div>` : ""}
+    ${d.actualMins ? `
+    <div class="calc">
+      <div><span>Actual</span><strong>${esc(a.from)} – ${esc(a.to)}</strong></div>
+      <div><span>Hours worked</span><strong>${fmtDur(shiftMins(a.from, a.to))}</strong></div>
+      <div><span>${d.actual === "early" ? "Short by" : "Overtime"}</span><strong>${fmtDur(d.actualMins)}</strong></div>
+    </div>` : ""}` : ""}
+
     ${d.actual === "times" && d.roster ? `
     <div class="grid-3">
-      <div class="field"><label>Actual from</label><input type="time" data-f="actualFrom" data-i="${i}" value="${esc(d.actualFrom)}"></div>
-      <div class="field"><label>Actual to</label><input type="time" data-f="actualTo" data-i="${i}" value="${esc(d.actualTo)}"></div>
-      <div class="field"><label>or hours</label><input type="number" min="0.25" max="24" step="0.25" inputmode="decimal" data-f="actualHours" data-i="${i}" placeholder="hrs"></div>
+      <div class="field"><label>Actual from</label>${timeSelect("actualFrom", i, d.actualFrom)}</div>
+      <div class="field"><label>Actual to</label>${timeSelect("actualTo", i, d.actualTo)}</div>
+      <div class="field"><label>Hours</label><select data-f="actualHours" data-i="${i}">${durOptions(shiftMins(d.actualFrom, d.actualTo), 24 * 60, "hrs")}</select></div>
     </div>` : ""}
 
     ${d.actual === "leave" && d.roster ? `
@@ -864,10 +943,10 @@ function dayEditor(d, i) {
         <label><input type="radio" name="ot${i}" data-f="ot" data-i="${i}" value="yes" ${d.ot ? "checked" : ""}> Yes</label>
       </div>
       ${d.ot ? `
-      ${d.otAuto ? `<p class="hint">Worked out from your actual finish time. Change it if needed.</p>` : ""}
+      ${d.otAuto ? `<p class="hint">Worked out from your actual finish time${d.otFrom && d.otTo ? ` (${fmtDur(shiftMins(d.otFrom, d.otTo))})` : ""}. Change it if needed.</p>` : ""}
       <div class="grid-2">
-        <div class="field"><label>OT from</label><input type="time" data-f="otFrom" data-i="${i}" value="${esc(d.otFrom)}"></div>
-        <div class="field"><label>OT to</label><input type="time" data-f="otTo" data-i="${i}" value="${esc(d.otTo)}"></div>
+        <div class="field"><label>OT from</label>${timeSelect("otFrom", i, d.otFrom)}</div>
+        <div class="field"><label>OT to</label>${timeSelect("otTo", i, d.otTo)}</div>
       </div>
       <div class="field">
         <label>Incident number / reason <span class="req">required</span></label>
@@ -883,8 +962,8 @@ function dayEditor(d, i) {
       </div>
       ${d.subs ? `
       <div class="grid-2">
-        <div class="field"><label>From</label><input type="time" data-f="subsFrom" data-i="${i}" value="${esc(d.subsFrom)}"></div>
-        <div class="field"><label>To</label><input type="time" data-f="subsTo" data-i="${i}" value="${esc(d.subsTo)}"></div>
+        <div class="field"><label>From</label>${timeSelect("subsFrom", i, d.subsFrom)}</div>
+        <div class="field"><label>To</label>${timeSelect("subsTo", i, d.subsTo)}</div>
         <div class="field"><label>Rate</label><select data-f="subsRate" data-i="${i}">${opt("", "— Select —", !d.subsRate)}${["5 hr", "10 hr"].map(r => opt(r, r, d.subsRate === r)).join("")}</select></div>
         <div class="field"><label>Location / incident</label><input type="text" data-f="subsLocation" data-i="${i}" value="${esc(d.subsLocation)}"></div>
       </div>` : ""}
@@ -908,10 +987,10 @@ function onDayInput(e) {
   const d = sheet.days[i];
 
   // Plain text fields: save without re-rendering (keeps the keyboard open).
-  const textFields = ["otReason", "subsLocation", "swapNote"];
+  const textFields = ["otReason", "subsLocation", "swapNote", "earlyNote"];
   if (textFields.includes(f)) {
     d[f] = el.value;
-    if (f === "otReason") el.classList.toggle("needs", !el.value.trim());
+    if (f === "otReason" || f === "earlyNote") el.classList.toggle("needs", !el.value.trim());
     touch(sheet);
     saveSoon();
     if (e.type === "change") updateDayHead(i);
@@ -929,16 +1008,21 @@ function onDayInput(e) {
       break;
     }
     case "rosterHours": {
-      d.rosterTo = addHours(d.rosterFrom, el.value) || d.rosterTo;
+      d.rosterTo = addHours(d.rosterFrom, Number(el.value) / 60) || d.rosterTo;
       break;
     }
     case "actualHours": {
-      d.actualTo = addHours(d.actualFrom, el.value) || d.actualTo;
+      d.actualTo = addHours(d.actualFrom, Number(el.value) / 60) || d.actualTo;
+      break;
+    }
+    case "actualMins": {
+      d.actualMins = Number(el.value) || 0;
       break;
     }
     case "actual": {
       d.actual = el.value;
       if (d.actual === "times" && !d.actualFrom) { d.actualFrom = d.rosterFrom; d.actualTo = d.rosterTo; }
+      if (d.actual === "early" && d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) d.actualMins = 0;
       break;
     }
     case "ot": {
@@ -965,7 +1049,7 @@ function onDayInput(e) {
     default:
       d[f] = el.value;
   }
-  if (["rosterValue", "rosterFrom", "rosterTo", "rosterHours", "actual", "actualFrom", "actualTo", "actualHours", "actualLeave"].includes(f)) {
+  if (["rosterValue", "rosterFrom", "rosterTo", "rosterHours", "actual", "actualMins", "actualFrom", "actualTo", "actualHours", "actualLeave"].includes(f)) {
     autoOvertime(d);
   }
   touch(sheet);
@@ -981,6 +1065,8 @@ function updateDayHead(i) {
   const tmp = document.createElement("div");
   tmp.innerHTML = dayCard(sheet.days[i], i);
   card.innerHTML = tmp.querySelector(".day__flags").innerHTML;
+  const sum = document.querySelector(`[data-day-card="${i}"] .day__sum`);
+  if (sum) sum.textContent = tmp.querySelector(".day__sum").textContent;
 }
 
 function copyToNext(i) {
@@ -989,7 +1075,7 @@ function copyToNext(i) {
   const src = sheet.days[i];
   const dst = sheet.days[i + 1];
   const keep = { date: dst.date };
-  Object.assign(dst, structuredClone(src), keep, { otReason: "", subs: false, subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
+  Object.assign(dst, structuredClone(src), keep, { otReason: "", earlyReason: "", earlyNote: "", subs: false, subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
   if (!dst.otAuto) { dst.ot = false; dst.otFrom = ""; dst.otTo = ""; dst.otAuto = true; }
   autoOvertime(dst);
   touch(sheet, `Copied ${DAYS[i].short} → ${DAYS[i + 1].short}`);
@@ -1023,6 +1109,13 @@ function validate(sheet) {
     if (d.roster === "leave" && !d.rosterLeave) errors.push(`${n}: choose the leave type.`);
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
     if (d.roster && d.actual === "leave" && !d.actualLeave) errors.push(`${n}: choose the actual leave type.`);
+    if (d.roster === "times" && d.actual === "early") {
+      if (!d.actualMins) errors.push(`${n}: how early did you finish?`);
+      else if (d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) errors.push(`${n}: finished early by more than the whole shift.`);
+      if (!d.earlyReason) errors.push(`${n}: choose why you finished early.`);
+      else if (d.earlyReason === "Other" && !d.earlyNote.trim()) errors.push(`${n}: say why you finished early.`);
+    }
+    if (d.roster === "times" && d.actual === "extended" && !d.actualMins) errors.push(`${n}: how long was the extended duty?`);
     if (d.ot) {
       if (!isTime(d.otFrom) || !isTime(d.otTo)) errors.push(`${n}: overtime from/to times are needed.`);
       if (!d.otReason.trim()) errors.push(`${n}: an incident number / reason is required for overtime.`);
@@ -1624,9 +1717,16 @@ function bind() {
   $("startBtn").addEventListener("click", startTimesheet);
   $("qStation").addEventListener("change", () => renderQuickFill(currentSheet()));
   $("qShift").addEventListener("change", updateQuickVisibility);
-  $("qOtherHours").addEventListener("input", () => {
-    const f = addHours($("qOtherStart").value, $("qOtherHours").value);
+  $("qOtherStart").innerHTML = timeOptions("");
+  $("qOtherFinish").innerHTML = timeOptions("");
+  $("qOtherHours").innerHTML = durOptions("", 24 * 60, "hrs");
+  $("qOtherHours").addEventListener("change", () => {
+    const f = addHours($("qOtherStart").value, Number($("qOtherHours").value) / 60);
     if (f) $("qOtherFinish").value = f;
+  });
+  $("qOtherFinish").addEventListener("change", () => {
+    const m = shiftMins($("qOtherStart").value, $("qOtherFinish").value);
+    $("qOtherHours").value = m && m % 15 === 0 ? String(m) : "";
   });
   $("applyBtn").addEventListener("click", applyQuickFill);
   $("publishBtn").addEventListener("click", publish);
@@ -1686,9 +1786,39 @@ function bind() {
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveState(); });
 }
 
+/* ------------------------------------------------------------------ */
+/* Add to Home Screen + offline                                        */
+/* ------------------------------------------------------------------ */
+
+let installPrompt = null;
+const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+function initInstall() {
+  const btn = $("installBtn");
+  const refresh = () => { btn.hidden = isStandalone() || !(installPrompt || isIOS()); };
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; refresh(); });
+  window.addEventListener("appinstalled", () => { installPrompt = null; refresh(); toast("Added to your home screen."); });
+  btn.addEventListener("click", async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") installPrompt = null;
+      refresh();
+    } else if (isIOS()) {
+      $("iosInstallDialog").showModal();
+    }
+  });
+  refresh();
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("sw.js").catch(err => console.warn("Offline support unavailable:", err));
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   loadState();
   initSigPad();
+  initInstall();
   bind();
   renderProfile();
   showTab(state.profile.name ? "timesheet" : "profile");
