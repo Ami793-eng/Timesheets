@@ -35,7 +35,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Other times** or **Not worked**.
   - **Rest day worked:** tap **Worked (OT / TOIL)** on the rest day, then choose **Worked – Overtime** or **Worked – TOIL** and enter the times.
     - **Overtime:** the overtime columns are filled with the times worked, and an incident number / reason is required.
-    - **TOIL:** the overtime columns stay empty, and column M reads "TOIL 08:00–20:00", plus an optional note.
+    - **TOIL:** the overtime columns are filled with the times worked as normal, and column M reads **"Bank TOIL"**, plus an optional note (e.g. "Bank TOIL – Cover"). No incident number is needed.
 - **Box off a day:** tap **✓ Done – next day** at the bottom of a day.
   - The app checks the day for anything missing (incident number, reasons, vehicle and so on).
   - The day folds to one line with a green tick, and the next unfinished day opens.

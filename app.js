@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-3";
+const APP_VERSION = "2026.11.02-4";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -329,7 +329,8 @@ function autoOvertime(d) {
   if (!d.otAuto) return;
   if (d.actual === "partleave") { d.ot = false; d.otFrom = ""; d.otTo = ""; return; }
   if (isRestWorked(d)) {
-    const ot = restWorkType(d) === "ot" && isTime(d.actualFrom) && isTime(d.actualTo);
+    // Overtime and TOIL both fill the overtime columns; TOIL is marked "Bank TOIL" in the notes.
+    const ot = !!restWorkType(d) && isTime(d.actualFrom) && isTime(d.actualTo);
     d.ot = ot; d.otFrom = ot ? d.actualFrom : ""; d.otTo = ot ? d.actualTo : "";
     return;
   }
@@ -355,6 +356,7 @@ function stripExtDuty(v) { return String(v || "").trim().replace(/^ext\.?\s*duty
 // Rest day worked: overtime or TOIL ("" = not chosen yet; older saved days count as overtime).
 function restWorkType(d) { return d.workType === undefined ? "ot" : d.workType; }
 function isRestWorked(d) { return d.roster === "rest" && d.actual === "times"; }
+function isBankToil(d) { return isRestWorked(d) && restWorkType(d) === "toil"; }
 
 // Part leave / part worked: minutes of leave = rostered shift − time worked.
 function partLeaveMins(d) {
@@ -404,9 +406,8 @@ function excelCells(d) {
     const note = `${d.partLeave} ${fmtDur(partLeaveMins(d))}${shiftTxt} – ${d.partNote.trim() || "Worked"} ${d.partFrom}–${d.partTo}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
-  if (isRestWorked(d) && restWorkType(d) === "toil" && isTime(d.actualFrom) && isTime(d.actualTo)) {
-    const note = `TOIL ${d.actualFrom}–${d.actualTo}${(d.toilNote || "").trim() ? ` – ${d.toilNote.trim()}` : ""}`;
-    c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
+  if (isBankToil(d)) {
+    c.otReason = `Bank TOIL${(d.toilNote || "").trim() ? ` – ${d.toilNote.trim()}` : ""}`;
   }
   if (d.actual === "late" && d.roster === "times" && d.lateReason) {
     const note = d.lateReason === "Compensatory Rest"
@@ -1105,10 +1106,10 @@ function dayChips(d) {
     else if (d.actual === "none") chips.push(["Not worked", "chip-plain"]);
   } else if (d.roster === "rest" && a.kind === "times") {
     const wt = restWorkType(d);
-    chips.push([wt === "toil" ? `TOIL ${a.from}–${a.to}` : wt === "ot" ? `Worked OT ${a.from}–${a.to}` : "Worked – OT or TOIL?", wt ? "chip-ot" : "chip-warn"]);
+    chips.push([wt === "toil" ? `Bank TOIL ${a.from}–${a.to}` : wt === "ot" ? `Worked OT ${a.from}–${a.to}` : "Worked – OT or TOIL?", wt ? "chip-ot" : "chip-warn"]);
   }
   if (d.ot && !isRestWorked(d)) chips.push([`OT ${d.otFrom}–${d.otTo}`, "chip-ot"]);
-  if (d.ot && !d.otReason.trim()) chips.push(["Incident no. needed", "chip-warn"]);
+  if (d.ot && !d.otReason.trim() && !isBankToil(d)) chips.push(["Incident no. needed", "chip-warn"]);
   if (d.subs) chips.push(["Subsistence", "chip-subs"]);
   return chips;
 }
@@ -1285,7 +1286,7 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
       <label>TOIL note <span class="opt">optional</span></label>
       <input type="text" data-f="toilNote" data-i="${i}" value="${esc(d.toilNote || "")}" placeholder="e.g. incident number, cover">
     </div>
-    <p class="hint">Recorded as TOIL in the notes column, not as paid overtime.</p>` : ""}` : ""}
+    <p class="hint">Overtime columns are filled in as normal; the notes column says “Bank TOIL”.</p>` : ""}` : ""}
 
 
     ${isSwap ? `
@@ -1307,6 +1308,7 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
         <div class="field"><label>OT from</label>${timeSelect("otFrom", i, d.otFrom)}</div>
         <div class="field"><label>OT to</label>${timeSelect("otTo", i, d.otTo)}</div>
       </div>
+      ${isBankToil(d) ? `<p class="hint">Marked <strong>Bank TOIL</strong> in the notes column${(d.toilNote || "").trim() ? ` (“Bank TOIL – ${esc(d.toilNote.trim())}”)` : ""}.</p>` : `
       <div class="field">
         ${d.actual === "extended" && isTimes ? `
         <label>Incident number <span class="req">required</span></label>
@@ -1314,7 +1316,7 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
         <small class="hint">Goes on the sheet as "Ext Duty ${esc(stripExtDuty(d.otReason) || "1234567")}".</small>` : `
         <label>Incident number / reason <span class="req">required</span></label>
         <input type="text" data-f="otReason" data-i="${i}" value="${esc(d.otReason)}" placeholder="e.g. incident number, late call" class="${d.otReason.trim() ? "" : "needs"}">`}
-      </div>` : ""}
+      </div>`}` : ""}
     </fieldset>
 
     <fieldset class="sub" aria-label="Subsistence?">
@@ -1595,7 +1597,7 @@ function dayErrors(d, i) {
     }
     if (d.ot) {
       if (!isTime(d.otFrom) || !isTime(d.otTo)) errors.push(`${n}: overtime from/to times are needed.`);
-      if (!d.otReason.trim()) errors.push(`${n}: an incident number / reason is required for overtime.`);
+      if (!d.otReason.trim() && !isBankToil(d)) errors.push(`${n}: an incident number / reason is required for overtime.`);
     }
     if (d.subs) {
       if (!isTime(d.subsFrom)) errors.push(`${n}: subsistence "From" time is missing.`);
