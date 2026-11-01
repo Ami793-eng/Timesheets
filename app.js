@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.01-14";
+const APP_VERSION = "2026.11.01-15";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1446,7 +1446,8 @@ async function loadTemplate() {
   return templateCache;
 }
 
-async function buildWorkbookFile(sheet, suffix = "") {
+// The template (or built-in layout) with this timesheet's values filled in.
+async function buildWorkbook(sheet) {
   if (typeof ExcelJS === "undefined") throw new Error("The Excel library didn't load. Check lib/exceljs.min.js is present.");
   const wb = new ExcelJS.Workbook();
   const tpl = await loadTemplate();
@@ -1458,6 +1459,11 @@ async function buildWorkbookFile(sheet, suffix = "") {
     ws = buildDefaultLayout(wb);
   }
   fillWorksheet(wb, ws, sheet);
+  return { wb, ws };
+}
+
+async function buildWorkbookFile(sheet, suffix = "") {
+  const { wb } = await buildWorkbook(sheet);
   const buffer = await wb.xlsx.writeBuffer();
   return new File([buffer], fileName(sheet, suffix), {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1546,140 +1552,196 @@ function buildDefaultLayout(wb) {
 }
 
 /* PDF copy ------------------------------------------------------------ */
-// A4 landscape PDF laid out like the NAS timesheet template.
+// The PDF is drawn straight from the filled-in worksheet, using the
+// template's own column widths, row heights, merged cells, fills, borders,
+// fonts and images, so it looks the same as the Excel sheet.
 
-let logoCache; // data URL | null
-async function templateLogo() {
-  if (logoCache !== undefined) return logoCache;
-  logoCache = null;
-  try {
-    const tpl = await loadTemplate();
-    if (tpl && typeof ExcelJS !== "undefined") {
-      const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(tpl);
-      const img = (wb.model.media || []).find(m => m.type === "image" && /png|jpe?g/.test(m.extension));
-      if (img) {
-        let bin = "";
-        const bytes = new Uint8Array(img.buffer);
-        for (let k = 0; k < bytes.length; k++) bin += String.fromCharCode(bytes[k]);
-        logoCache = `data:image/${img.extension === "jpg" ? "jpeg" : img.extension};base64,${btoa(bin)}`;
-      }
+// Excel's standard indexed colour palette (used by older templates).
+const XL_INDEXED = ["000000","FFFFFF","FF0000","00FF00","0000FF","FFFF00","FF00FF","00FFFF","000000","FFFFFF","FF0000","00FF00","0000FF","FFFF00","FF00FF","00FFFF","800000","008000","000080","808000","800080","008080","C0C0C0","808080","9999FF","993366","FFFFCC","CCFFFF","660066","FF8080","0066CC","CCCCFF","000080","FF00FF","FFFF00","00FFFF","800080","800000","008080","0000FF","00CCFF","CCFFFF","CCFFCC","FFFF99","99CCFF","FF99CC","CC99FF","FFCC99","3366FF","33CCCC","99CC00","FFCC00","FF9900","FF6600","666699","969696","003366","339966","003300","333300","993300","993366","333399","333333"];
+
+function xlColor(c, fallback) {
+  if (!c) return fallback;
+  if (c.argb) { const h = c.argb.slice(-6); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+  if (c.indexed !== undefined) {
+    if (c.indexed === 64) return fallback;   // "system foreground"
+    const h = XL_INDEXED[c.indexed]; if (h) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  if (c.theme !== undefined) return c.theme === 0 ? [255, 255, 255] : c.theme === 1 ? [0, 0, 0] : fallback;
+  return fallback;
+}
+
+function colLetter(n) { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+function decodeAddr(a) {
+  const m = /^([A-Z]+)(\d+)$/.exec(a);
+  let c = 0; for (const ch of m[1]) c = c * 26 + ch.charCodeAt(0) - 64;
+  return { col: c, row: Number(m[2]) };
+}
+
+function cellText(cell) {
+  let v = cell.value;
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object" && !(v instanceof Date)) {
+    if (v.richText) v = v.richText.map(t => t.text).join("");
+    else if (v.text !== undefined) v = typeof v.text === "object" && v.text.richText ? v.text.richText.map(t => t.text).join("") : v.text;
+    else if (v.result !== undefined) v = v.result;
+    else return "";
+  }
+  if (v instanceof Date) {
+    const d = v, dd = pad(d.getUTCDate()), mm = pad(d.getUTCMonth() + 1), yyyy = d.getUTCFullYear();
+    return /yyyy/i.test(cell.numFmt || "") ? `${dd}/${mm}/${yyyy}` : `${dd}/${mm}/${String(yyyy).slice(2)}`;
+  }
+  return String(v);
+}
+
+// Last used row / column of the printed area.
+function sheetExtent(ws) {
+  let maxR = 0, maxC = 0;
+  ws.eachRow({ includeEmpty: false }, (row, r) => {
+    row.eachCell({ includeEmpty: false }, (cell, c) => {
+      const hasLook = cell.value !== null || (cell.fill && cell.fill.type === "pattern" && cell.fill.pattern !== "none") ||
+        (cell.border && Object.keys(cell.border).length);
+      if (hasLook) { maxR = Math.max(maxR, r); maxC = Math.max(maxC, c); }
+    });
+  });
+  (ws.model.merges || []).forEach(m => { const b = decodeAddr(m.split(":")[1]); maxR = Math.max(maxR, b.row); maxC = Math.max(maxC, b.col); });
+  return { rows: maxR, cols: maxC };
+}
+
+async function renderWorksheetPdf(wb, ws) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const { rows, cols } = sheetExtent(ws);
+  const PX = 0.2646;                                         // mm per pixel at 96 dpi
+  const defW = ws.properties.defaultColWidth || 8.43;
+  const defH = ws.properties.defaultRowHeight || 15;
+  const colW = []; for (let c = 1; c <= cols; c++) colW[c] = (Math.trunc(((ws.getColumn(c).width || defW) * 7 + 5) / 7 * 256) / 256 * 7) * PX;
+  const rowH = []; for (let r = 1; r <= rows; r++) rowH[r] = (ws.getRow(r).height || defH) * 0.3528;
+  const totalW = colW.slice(1).reduce((a, b) => a + b, 0);
+  const totalH = rowH.slice(1).reduce((a, b) => a + b, 0);
+  const pageW = 297, pageH = 210, margin = 8;
+  const k = Math.min((pageW - 2 * margin) / totalW, (pageH - 2 * margin - 4) / totalH, 1);
+  const ox = (pageW - totalW * k) / 2, oy = margin;
+  const X = [], Y = [];
+  X[1] = ox; for (let c = 1; c <= cols; c++) X[c + 1] = X[c] + colW[c] * k;
+  Y[1] = oy; for (let r = 1; r <= rows; r++) Y[r + 1] = Y[r] + rowH[r] * k;
+
+  // Merged regions, keyed by every cell inside them.
+  const regionOf = {};
+  (ws.model.merges || []).forEach(m => {
+    const [a, b] = m.split(":").map(decodeAddr);
+    const reg = { top: a.row, left: a.col, bottom: b.row, right: b.col };
+    for (let r = a.row; r <= b.row; r++) for (let c = a.col; c <= b.col; c++) regionOf[`${r}:${c}`] = reg;
+  });
+  const region = (r, c) => regionOf[`${r}:${c}`] || { top: r, left: c, bottom: r, right: c };
+
+  // 1. fills
+  for (let r = 1; r <= rows; r++) for (let c = 1; c <= cols; c++) {
+    const reg = region(r, c);
+    if (reg.top !== r || reg.left !== c) continue;
+    const f = ws.getCell(r, c).fill;
+    if (f && f.type === "pattern" && f.pattern && f.pattern !== "none") {
+      const col = xlColor(f.fgColor, null);
+      if (col) { doc.setFillColor(...col); doc.rect(X[c], Y[r], X[reg.right + 1] - X[c], Y[reg.bottom + 1] - Y[r], "F"); }
     }
-  } catch (err) { console.warn("No logo for PDF:", err); }
-  return logoCache;
+  }
+  // 2. borders (skip lines inside merged regions)
+  const lw = { hair: 0.1, thin: 0.2, dotted: 0.2, dashed: 0.2, medium: 0.45, mediumDashed: 0.45, double: 0.5, thick: 0.7 };
+  const line = (b, x1, y1, x2, y2) => {
+    if (!b || !b.style) return;
+    doc.setLineWidth((lw[b.style] || 0.2) * Math.max(k, 0.6));
+    doc.setDrawColor(...xlColor(b.color, [0, 0, 0]));
+    doc.line(x1, y1, x2, y2);
+  };
+  for (let r = 1; r <= rows; r++) for (let c = 1; c <= cols; c++) {
+    const b = ws.getCell(r, c).border || {};
+    const reg = region(r, c);
+    if (r === reg.top) line(b.top, X[c], Y[r], X[c + 1], Y[r]);
+    if (r === reg.bottom) line(b.bottom, X[c], Y[r + 1], X[c + 1], Y[r + 1]);
+    if (c === reg.left) line(b.left, X[c], Y[r], X[c], Y[r + 1]);
+    if (c === reg.right) line(b.right, X[c + 1], Y[r], X[c + 1], Y[r + 1]);
+  }
+  // 3. text
+  for (let r = 1; r <= rows; r++) for (let c = 1; c <= cols; c++) {
+    const reg = region(r, c);
+    if (reg.top !== r || reg.left !== c) continue;
+    const cell = ws.getCell(r, c);
+    const text = cellText(cell);
+    if (!text) continue;
+    const font = cell.font || {};
+    const al = cell.alignment || {};
+    const x0 = X[c], x1 = X[reg.right + 1], y0 = Y[r], y1 = Y[reg.bottom + 1];
+    // Calibri (the template's main font) is ~12% narrower than Helvetica, the PDF's built-in sans font.
+    let size = (font.size || 11) * k * (/calibri|carlito/i.test(font.name || "Calibri") ? 0.88 : 1);
+    const isLink = cell.value && typeof cell.value === "object" && cell.value.hyperlink;
+    doc.setFont(/times|roman/i.test(font.name || "") ? "times" : "helvetica", font.bold && font.italic ? "bolditalic" : font.bold ? "bold" : font.italic ? "italic" : "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(...(isLink ? [5, 99, 193] : xlColor(font.color, [0, 0, 0])));
+    const pad = 1.2 * k;
+    const w = x1 - x0 - 2 * pad;
+    let lines = al.wrapText ? doc.splitTextToSize(text, w) : [text];
+    const lh = () => size * 0.3528 * 1.15;
+    while (al.wrapText && lines.length * lh() > (y1 - y0) && size > 4) { size -= 0.5; doc.setFontSize(size); lines = doc.splitTextToSize(text, w); }
+    const blockH = lines.length * lh();
+    const v = al.vertical || "bottom";
+    let ty = v === "top" ? y0 + pad + size * 0.3528 : v === "middle" || v === "center" ? y0 + (y1 - y0 - blockH) / 2 + size * 0.3528 * 0.85 : y1 - pad - blockH + size * 0.3528 * 0.85;
+    const isNum = typeof cell.value === "number";
+    const h = al.horizontal || (isNum ? "right" : "left");
+    const align = h === "center" || h === "centerContinuous" ? "center" : h === "right" ? "right" : "left";
+    const tx = align === "center" ? (x0 + x1) / 2 : align === "right" ? x1 - pad : x0 + pad;
+    doc.text(lines, tx, ty, { align, lineHeightFactor: 1.15 });
+    if (font.underline || isLink) {
+      const tw = doc.getTextWidth(lines[0]);
+      const ux = align === "center" ? tx - tw / 2 : align === "right" ? tx - tw : tx;
+      doc.setLineWidth(0.15); doc.setDrawColor(...(isLink ? [5, 99, 193] : [0, 0, 0]));
+      doc.line(ux, ty + 0.6, ux + tw, ty + 0.6);
+    }
+  }
+  doc.setTextColor(0, 0, 0);
+  // 4. images (logo + signature)
+  const EMU = 9525;
+  for (const im of ws.getImages()) {
+    const media = wb.getImage(Number(im.imageId));
+    if (!media) continue;
+    const tl = im.range.tl;
+    const colPos = (col, off) => { const cc = Math.floor(col) + 1; return (X[cc] ?? X[cols + 1]) + (off !== undefined ? off / EMU * PX * k : (col % 1) * (colW[cc] || 0) * k); };
+    const rowPos = (row, off) => { const rr = Math.floor(row) + 1; return (Y[rr] ?? Y[rows + 1]) + (off !== undefined ? off / EMU * PX * k : (row % 1) * (rowH[rr] || 0) * k); };
+    const x = colPos(tl.nativeCol ?? tl.col, tl.nativeColOff);
+    const y = rowPos(tl.nativeRow ?? tl.row, tl.nativeRowOff);
+    let w, h;
+    if (im.range.ext) { w = im.range.ext.width * PX * k; h = im.range.ext.height * PX * k; }
+    else if (im.range.br) {
+      const br = im.range.br;
+      w = colPos(br.nativeCol ?? br.col, br.nativeColOff) - x;
+      h = rowPos(br.nativeRow ?? br.row, br.nativeRowOff) - y;
+    } else continue;
+    let data = media.base64;
+    if (!data && media.buffer) {
+      const bytes = new Uint8Array(media.buffer); let bin = "";
+      for (let n = 0; n < bytes.length; n++) bin += String.fromCharCode(bytes[n]);
+      data = btoa(bin);
+    }
+    if (!data) continue;
+    if (!data.startsWith("data:")) data = `data:image/${media.extension === "jpg" ? "jpeg" : media.extension};base64,${data}`;
+    try { doc.addImage(data, (media.extension || "png").toUpperCase().replace("JPG", "JPEG"), x, y, w, h); } catch (err) { console.warn("Image skipped in PDF:", err); }
+  }
+  return { doc, bottom: Y[rows + 1] };
 }
 
 async function buildPdfFile(sheet, suffix = "") {
   if (!window.jspdf) throw new Error("The PDF library didn't load. Check lib/jspdf.umd.min.js is present.");
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const staff = sheet.staff || { name: state.profile.name, number: state.profile.number, base: profileBase(), signatureText: state.profile.signatureText, signatureImage: state.profile.signatureImage };
-  const GREEN = [51, 153, 102], RED = [230, 50, 40], LIME = [146, 208, 80], GREY = [90, 90, 90], LIGHT = [242, 242, 242];
-  const M = 10;
-
-  const box = (x, y, w, h, { fill, text, bold, size = 8, color = [0, 0, 0], align = "center", wrap = false } = {}) => {
-    if (fill) { doc.setFillColor(...fill); doc.rect(x, y, w, h, "FD"); } else doc.rect(x, y, w, h);
-    if (text === undefined || text === null || text === "") return;
-    doc.setFont("helvetica", bold ? "bold" : "normal");
-    doc.setFontSize(size);
-    doc.setTextColor(...color);
-    let lines = wrap ? doc.splitTextToSize(String(text), w - 2) : [String(text)];
-    while (wrap && lines.length * size * 0.4 > h - 1 && size > 5) { size -= 0.5; doc.setFontSize(size); lines = doc.splitTextToSize(String(text), w - 2); }
-    const lh = size * 0.4;
-    const ty = y + h / 2 - ((lines.length - 1) * lh) / 2 + size * 0.13;
-    const tx = align === "left" ? x + 1.5 : x + w / 2;
-    doc.text(lines, tx, ty, { align: align === "left" ? "left" : "center" });
-    doc.setTextColor(0, 0, 0);
-  };
-
-  doc.setDrawColor(40, 40, 40);
-  doc.setLineWidth(0.25);
-
-  // Header
-  const logo = await templateLogo();
-  if (logo) doc.addImage(logo, "PNG", M, 6, 20, 17);
-  box(40, 8, 30, 7, { fill: GREEN, text: "Name:", bold: true, color: [255, 255, 255] });
-  box(70, 8, 72, 7, { text: staff.name, bold: true, size: 9 });
-  box(160, 8, 40, 7, { fill: GREEN, text: "Personnel Number:", bold: true, color: [255, 255, 255] });
-  box(200, 8, 50, 7, { text: staff.number, size: 9 });
-  box(40, 17, 30, 7, { fill: GREEN, text: "Date Week Ending:", bold: true, color: [255, 255, 255], size: 7.5 });
-  box(70, 17, 72, 7, { text: displayDate(sheet.weekEnding), size: 9 });
-  box(160, 17, 40, 7, { fill: GREEN, text: "Station:", bold: true, color: [255, 255, 255] });
-  box(200, 17, 50, 7, { text: staff.base, bold: true, size: 9 });
+  if (!sheet.staff) {
+    const p = state.profile;
+    sheet = { ...sheet, staff: { name: p.name, number: p.number, base: profileBase(), signatureText: p.signatureText, signatureImage: p.signatureImage } };
+  }
+  const { wb, ws } = await buildWorkbook(sheet);
+  const { doc } = await renderWorksheetPdf(wb, ws);
+  // Small footer outside the sheet: status, amendment, roster line.
   const amended = amendLabel(sheet);
-  if (amended) {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...RED);
-    doc.text(amended, 297 - M, 14, { align: "right" }); doc.setTextColor(0, 0, 0);
-  }
-
-  // Table columns
-  const cols = [
-    ["Day", 22], ["Date", 18], ["", 14], ["From", 14], ["To", 14], ["Station Worked from", 26],
-    ["From", 13], ["To", 13], ["5/10 hr", 13], ["Location & Incident No", 38],
-    ["From", 13], ["To", 13], ["Reason for O/T Incident No.", 66]
-  ];
-  const xs = []; let cx = M; cols.forEach(([, w]) => { xs.push(cx); cx += w; });
-  let y = 28;
-  // Group header row
-  box(xs[0], y, cols[0][1] + cols[1][1] + cols[2][1], 6, { fill: GREEN });
-  box(xs[3], y, cols[3][1] + cols[4][1], 6, { fill: GREEN, text: "Time", bold: true, color: [255, 255, 255] });
-  box(xs[5], y, cols[5][1], 6, { fill: GREEN });
-  box(xs[6], y, 13 * 3 + 38, 6, { fill: RED, text: "Subsistence", bold: true, color: [255, 255, 255] });
-  box(xs[10], y, 13 * 2 + 66, 6, { fill: LIME, text: "Overtime Hours Worked", bold: true });
-  y += 6;
-  cols.forEach(([t, w], k) => box(xs[k], y, w, 9, {
-    fill: k >= 6 && k <= 9 ? RED : k >= 10 ? LIME : GREEN, text: t, bold: true, wrap: true, size: 7.5,
-    color: k >= 10 ? [0, 0, 0] : [255, 255, 255]
-  }));
-  y += 9;
-
-  const RH = 8;
-  sheet.days.forEach((d, i) => {
-    const c = excelCells(d);
-    const worked = d.roster === "times" || resolvedActual(d).kind === "times";
-    const where = [d.subsLocation.trim(), (d.subsVehicle || "").trim() ? `Vehicle ${(d.subsVehicle || "").trim()}` : ""].filter(Boolean).join(" – ");
-    const subs = d.subs ? [d.subsFrom, d.subsTo, d.subsRate, where] : ["", "", "", ""];
-    const [yy, mm, dd] = d.date.split("-");
-    box(xs[0], y, cols[0][1], RH * 2, { fill: GREEN, text: DAYS[i].name, bold: true, color: [255, 255, 255] });
-    box(xs[1], y, cols[1][1], RH * 2, { text: `${dd}/${mm}/${yy.slice(2)}` });
-    box(xs[2], y, cols[2][1], RH, { fill: LIGHT, text: "Roster", bold: true, size: 7 });
-    box(xs[2], y + RH, cols[2][1], RH, { fill: LIGHT, text: "Actual", bold: true, size: 7 });
-    box(xs[3], y, cols[3][1], RH, { text: c.rFrom, wrap: true, size: 7.5 });
-    box(xs[4], y, cols[4][1], RH, { text: c.rTo, size: 7.5 });
-    box(xs[3], y + RH, cols[3][1], RH, { text: c.aFrom, wrap: true, size: 7.5 });
-    box(xs[4], y + RH, cols[4][1], RH, { text: c.aTo, size: 7.5 });
-    box(xs[5], y, cols[5][1], RH * 2, { text: worked ? (d.station || staff.base) : "", size: 7.5 });
-    subs.forEach((v, k) => box(xs[6 + k], y, cols[6 + k][1], RH * 2, { text: v, wrap: k === 3, size: 7 }));
-    box(xs[10], y, cols[10][1], RH * 2, { text: c.otFrom, size: 7.5 });
-    box(xs[11], y, cols[11][1], RH * 2, { text: c.otTo, size: 7.5 });
-    box(xs[12], y, cols[12][1], RH * 2, { text: c.otReason, wrap: true, size: 7, align: "left" });
-    y += RH * 2;
-  });
-
-  // Signatures
-  y += 5;
-  box(M, y, 40, 11, { fill: GREEN, text: "Employee Signature:", bold: true, color: [255, 255, 255] });
-  box(M + 40, y, 80, 11);
-  if (staff.signatureImage) {
-    const { w, h } = pngSize(staff.signatureImage);
-    const hh = 9, ww = Math.min(76, hh * ((w / h) || 3.75));
-    doc.addImage(staff.signatureImage, "PNG", M + 42, y + 1, ww, hh);
-  } else if (staff.signatureText || staff.name) {
-    doc.setFont("times", "italic"); doc.setFontSize(14);
-    doc.text(staff.signatureText || staff.name, M + 42, y + 7.5);
-  }
-  box(160, y, 45, 11, { fill: GREEN, text: "Line Manager Signature:", bold: true, color: [255, 255, 255] });
-  box(205, y, 82, 11);
-
-  // Declaration + footer
-  y += 17;
-  doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(...GREY);
-  doc.text(sheet.declaration || DECLARATION, M, y);
   const when = sheet.publishedAt ? new Date(sheet.publishedAt) : new Date();
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7);
-  doc.text(`${sheet.status === "published" ? "Published" : "DRAFT – not submitted"} ${when.toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" })}${amended ? ` · ${amended}` : ""}${sheet.rosterLine ? ` · Roster line ${sheet.rosterLine}` : ""} · Timesheet Hub`, M, 203);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(110, 110, 110);
+  doc.text(`${sheet.status === "published" ? "Published" : "DRAFT – not submitted"} ${when.toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" })}${amended ? ` · ${amended}` : ""}${sheet.rosterLine ? ` · Roster line ${sheet.rosterLine}` : ""}`, 8, 205);
+  if (amended) { doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(200, 0, 0); doc.text(amended, 289, 205, { align: "right" }); }
   doc.setTextColor(0, 0, 0);
-
   const blob = doc.output("blob");
   return new File([blob], fileName(sheet, suffix).replace(/\.xlsx$/, ".pdf"), { type: "application/pdf" });
 }
