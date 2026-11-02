@@ -6,7 +6,7 @@ A single document to start a new project or session from. It covers what the app
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.02-8`, 37 commits, all pushed.
+- **State at handover:** app version `2026.11.02-9`, 37 commits, all pushed.
 
 ---
 
@@ -34,7 +34,8 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 | `index.html` | All screens (tabs: Timesheet, Library, Forms, My details), dialogs, early theme script |
 | `styles.css` | Mobile-first styling, colour themes, dark mode (`html.dark` class) |
 | `app.js` | Everything except Forms: state, roster, day logic, validation, Excel fill, PDF render, email, library, appearance, PWA |
-| `forms.js` | Forms tab: reads and fills fillable PDFs, form profiles (e.g. HR 108(d)) |
+| `forms.js` | Forms tab: reads and fills fillable PDFs, built-in and uploaded forms |
+| `form-profiles.js`, `forms/` | Setups for each HSE form, and the bundled blank PDFs |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app and offline support (network-first service worker) |
 | `template.xlsx` | Official NAS timesheet (*New_Timesheet_Template_2025*); filled in for Excel and PDF |
 | `lib/exceljs.min.js` | ExcelJS 4.4.0: reads and writes the template |
@@ -125,8 +126,9 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 - **General approach:** add any fillable PDF. Boxes are listed in page order and pre-filled from My details (surname, first name, name, personnel no, grade, department, location, email, phone, PPS, today). Each detail goes only in the **first** matching box. Manager and HR sections are grouped and left blank.
 - **Signature:** drawn into the employee signature box.
 - **Character limits:** values are fitted to comb boxes (dates → ddmmyyyy; PPS split into 7 digits + 2 letters), with a warning if anything doesn't fit.
-- **Form profiles** (`FORM_PROFILES` in `forms.js`): per-form labels, manager sections, and a signature position. Done so far: **HR 108(d) Bereavement Leave** (V5 July 2023), tested with the real PDF.
-- **Official links** for the HR 108 series are listed in the app. The sandbox couldn't reach hse.ie, so the forms must be supplied as files.
+- **Built-in forms** (`forms/`, set up in `FORM_PROFILES` in `form-profiles.js`): HR 108 a, c, d, e, f, g, h, i, j, k, m, n, p, q, r, s, t, u. Each has labels for every box, pre-fill, manager/HR boxes kept blank, and an employee signature position. Each lists its HSE link ("HSE ↗") to check for a newer version; an uploaded copy is recognised (by box names or PDF title) and replaces the bundled one.
+- **Profile features:** `hide` (decoration boxes), `combos` (one value spread over one-character squares, e.g. HR 108(c)), `groups` (optional sections such as Maternity postponement or the Confirmation Agreement page, written only when ticked), `options` (readable radio choices), `long` (multi-line box). Auto-sized text boxes are given a normal font size.
+- **Not built in yet:** HR 108(b) Anticipation of Annual Leave, HR 108(o) Special Unpaid Leave and HR 110 Nominal Pay (PDFs not supplied yet; the sandbox can't reach hse.ie); HR 108(l) Reserve Defence Forces (the PDF has no fillable boxes); HR 117 Breastfeeding Breaks (Word document).
 
 ### Look and feel
 - **Tabs:** Timesheet / Library / Forms / My details.
@@ -141,7 +143,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 ## 5. Open items / next steps
 
 1. **Standard-day leave hours:** confirm with HR which leave types pay 7.8h and whether that's right (parked: "we'll come back to the hours").
-2. **HSE forms:** collect the blank PDFs (HR 108 p/e/s/j/c/o/g/l, maternity, paternity, parent's, carer's…), add a **profile** for each, and **bundle them in the repo** as built-in templates (blank only, with version shown and "check latest" link; an uploaded newer copy overrides).
+2. **HSE forms:** 18 forms are built in. Still to do: get the PDFs for HR 108(b), 108(o) and HR 110 and add setups; HR 108(l) needs text placed by position (no fillable boxes); HR 117 needs a fillable PDF version. Check the filled forms on a real phone and with HR.
 3. **Link leave days to forms:** e.g. a Study or Interview Leave day offers "Fill in the leave form" with dates and hours pre-filled.
 4. **Payroll confirmations:**
    - Leave on a part day: Roster row as shift times vs "Annual Leave" (currently shift times).
