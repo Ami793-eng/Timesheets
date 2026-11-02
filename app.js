@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-5";
+const APP_VERSION = "2026.11.02-6";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -71,7 +71,21 @@ const LEAVE_TYPES = [
   "Certified Sick Leave",
   "Force Majeure",
   "Study Leave",
+  "Examination Leave",
+  "Interview Leave",
+  "Marriage Leave",
   "Shift Swap"
+];
+
+// Leave paid as a "standard day" (e.g. 7h 48m) rather than the full shift.
+// The rest of a longer shift is topped up with Annual Leave, TOIL, or worked.
+// Defaults only — the user can change both in My details → Leave rules.
+const DEFAULT_STD_DAY_MINS = 468;                       // 7.8 hours = 7h 48m
+const DEFAULT_STD_DAY_LEAVE = ["Interview Leave", "Marriage Leave"];
+const TOP_UPS = [
+  { id: "al",     label: "Annual Leave" },
+  { id: "toil",   label: "TOIL" },
+  { id: "worked", label: "Worked the rest" }
 ];
 
 // Why someone finished a shift early.
@@ -263,6 +277,9 @@ function blankDay(dateIso) {
     partFrom: "",        //   …the part actually worked
     partTo: "",
     partNote: "",        //   …what it was (e.g. Meeting)
+    topUp: "",           // standard-day leave on a longer shift: al | toil | worked
+    topFrom: "",
+    topTo: "",
     workType: "",        // rest day worked: "ot" (overtime) or "toil"
     toilNote: "",
     partRostered: false, //   ticked → Roster row shows the leave instead of the shift times
@@ -359,6 +376,15 @@ function autoOvertime(d) {
 // "Ext Duty 1234567" → "1234567" (so the prefix is never doubled up).
 function stripExtDuty(v) { return String(v || "").trim().replace(/^ext\.?\s*duty[:\s-]*/i, ""); }
 
+// Standard-day leave (e.g. Interview Leave pays 7h 48m of a 12h shift).
+function stdDayMins() { return Number(state.profile.stdDayMins) || DEFAULT_STD_DAY_MINS; }
+function stdDayLeaveTypes() { return Array.isArray(state.profile.stdDayLeave) ? state.profile.stdDayLeave : DEFAULT_STD_DAY_LEAVE; }
+// Minutes to top up (0 if this day doesn't need it).
+function topUpMins(d) {
+  if (d.roster !== "times" || d.actual !== "leave" || !stdDayLeaveTypes().includes(d.actualLeave)) return 0;
+  return Math.max(0, shiftMins(d.rosterFrom, d.rosterTo) - stdDayMins());
+}
+
 // Rest day worked: overtime or TOIL ("" = not chosen yet; older saved days count as overtime).
 function restWorkType(d) { return d.workType === undefined ? "ot" : d.workType; }
 function isRestWorked(d) { return d.roster === "rest" && d.actual === "times"; }
@@ -391,6 +417,8 @@ function excelCells(d) {
   const a = resolvedActual(d);
   if (a.kind === "times") { c.aFrom = a.from; c.aTo = a.to; }
   else if (a.kind === "leave") [c.aFrom, c.aTo] = splitLabel(a.label);
+  const tu = topUpMins(d);
+  if (tu && d.topUp === "worked" && isTime(d.topFrom) && isTime(d.topTo)) { c.aFrom = d.topFrom; c.aTo = d.topTo; }
   else if (roster === "rest") [c.aFrom, c.aTo] = splitLabel("Rest Day");   // rest day that stayed a rest day
 
   if (d.ot) {
@@ -410,6 +438,13 @@ function excelCells(d) {
   if (d.actual === "partleave" && d.roster === "times" && d.partLeave && isTime(d.partFrom) && isTime(d.partTo)) {
     const shiftTxt = d.partRostered === true ? ` (rostered ${d.rosterFrom}–${d.rosterTo})` : "";
     const note = `${d.partLeave} ${fmtDur(partLeaveMins(d))}${shiftTxt} – ${d.partNote.trim() || "Worked"} ${d.partFrom}–${d.partTo}`;
+    c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
+  }
+  if (tu && d.topUp) {
+    const lv = `${d.actualLeave} ${fmtDur(stdDayMins())}`;
+    const note = d.topUp === "worked"
+      ? `${lv} – worked ${d.topFrom}–${d.topTo} (${fmtDur(shiftMins(d.topFrom, d.topTo))})`
+      : `${lv} + ${d.topUp === "al" ? "Annual Leave" : "TOIL"} ${fmtDur(tu)}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   if (isBankToil(d)) {
@@ -575,6 +610,7 @@ function renderProfile() {
   $("pBaseOther").value = p.baseOther;
   $("pBaseOtherWrap").hidden = p.base !== "Other";
   renderRosterSettings();
+  renderLeaveRules();
   $("pMeEmail").value = p.meEmail || "";
   $("pMeDefault").checked = !!p.meDefault;
   renderContacts();
@@ -606,6 +642,24 @@ function renderRosterSettings() {
 
 function describeCodes(line) {
   return line.split("").map(c => c === "R" ? "–" : c === "X" ? "Rd" : c).join(" ");
+}
+
+function renderLeaveRules() {
+  const cur = stdDayMins();
+  const choices = [450, 456, 468, 480];
+  if (!choices.includes(cur)) choices.push(cur);
+  $("pStdDay").innerHTML = choices.sort((a, b) => a - b).map(m => opt(String(m), `${fmtDur(m)}  (${(m / 60).toFixed(2).replace(/0$/, "")} hours)`, m === cur)).join("");
+  const on = stdDayLeaveTypes();
+  $("pStdDayLeave").innerHTML = LEAVE_TYPES.filter(l => l !== "Annual Leave" && l !== "Shift Swap").map(l => `
+    <label class="check check--small"><input type="checkbox" value="${esc(l)}" ${on.includes(l) ? "checked" : ""}> <span>${esc(l)}</span></label>`).join("");
+}
+
+function onLeaveRulesChange() {
+  state.profile.stdDayMins = Number($("pStdDay").value) || DEFAULT_STD_DAY_MINS;
+  state.profile.stdDayLeave = [...document.querySelectorAll("#pStdDayLeave input:checked")].map(i => i.value);
+  saveState();
+  if (currentSheet()) renderDays(currentSheet());
+  toast("Leave rules saved.");
 }
 
 function onRosterChange() {
@@ -1108,7 +1162,12 @@ function dayChips(d) {
     else if (d.actual === "late") chips.push([d.actualMins ? `${d.lateReason === "Compensatory Rest" ? "Comp rest" : "Late start"} +${m}` : "Late – how long?", "chip-warn-soft"]);
     else if (d.actual === "partleave") chips.push([d.partLeave && isTime(d.partFrom) ? `${d.partLeave} ${fmtDur(partLeaveMins(d))} + ${d.partNote.trim() || "worked"} ${d.partFrom}–${d.partTo}` : "Part leave – details?", "chip-leave"]);
     else if (d.actual === "times" && a.kind === "times") chips.push([`Actual ${a.from}–${a.to}`, "chip-plain"]);
-    else if (d.actual === "leave") chips.push([d.actualLeave || "Leave?", "chip-leave"]);
+    else if (d.actual === "leave") {
+      const tu = topUpMins(d);
+      if (!tu) chips.push([d.actualLeave || "Leave?", "chip-leave"]);
+      else if (!d.topUp) { chips.push([`${d.actualLeave} ${fmtDur(stdDayMins())}`, "chip-leave"]); chips.push([`Top up ${fmtDur(tu)}?`, "chip-warn"]); }
+      else chips.push([`${d.actualLeave} ${fmtDur(stdDayMins())} + ${d.topUp === "al" ? "AL" : d.topUp === "toil" ? "TOIL" : `worked ${d.topFrom}–${d.topTo}`}${d.topUp === "worked" ? "" : ` ${fmtDur(tu)}`}`, "chip-leave"]);
+    }
     else if (d.actual === "none") chips.push(["Not worked", "chip-plain"]);
   } else if (d.roster === "rest" && a.kind === "times") {
     const wt = restWorkType(d);
@@ -1295,6 +1354,28 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
     <p class="hint">Overtime columns are filled in as normal; the notes column says “Bank TOIL”.</p>` : ""}` : ""}
 
 
+    ${topUpMins(d) ? (() => {
+      const tu = topUpMins(d);
+      return `
+    <div class="topup">
+      <div class="calc">
+        <div><span>Shift</span><strong>${fmtDur(shiftLen)}</strong></div>
+        <div><span>${esc(d.actualLeave)}</span><strong>${fmtDur(stdDayMins())}</strong></div>
+        <div><span>To top up</span><strong>${fmtDur(tu)}</strong></div>
+      </div>
+      <div class="field">
+        <span class="label">Cover the other ${fmtDur(tu)} with <span class="req">required</span></span>
+        <div class="segmented">${TOP_UPS.map(t => `<label><input type="radio" name="topUp${i}" data-f="topUp" data-i="${i}" value="${t.id}" ${d.topUp === t.id ? "checked" : ""}> ${t.label}</label>`).join("")}</div>
+      </div>
+      ${d.topUp === "worked" ? `
+      <div class="grid-2">
+        <div class="field"><label>Worked from</label>${timeSelect("topFrom", i, d.topFrom)}</div>
+        <div class="field"><label>Worked to</label>${timeSelect("topTo", i, d.topTo)}</div>
+      </div>
+      ${isTime(d.topFrom) && isTime(d.topTo) && shiftMins(d.topFrom, d.topTo) !== tu ? `<p class="hint warn-text">That's ${fmtDur(shiftMins(d.topFrom, d.topTo))} — the top-up needed is ${fmtDur(tu)}.</p>` : ""}` : ""}
+    </div>`;
+    })() : ""}
+
     ${isSwap ? `
     <div class="field">
       <label>Shift swap note (optional)</label>
@@ -1441,6 +1522,14 @@ function onDayInput(e) {
     }
     case "subs": {
       d.subs = el.value === "yes";
+      break;
+    }
+    case "topUp": {
+      d.topUp = el.value;
+      if (d.topUp === "worked" && !d.topFrom) {        // default: the end of the shift
+        d.topTo = d.rosterTo;
+        d.topFrom = fromMin(toMin(d.rosterTo) - topUpMins(d));
+      }
       break;
     }
     case "partRostered": {
@@ -1593,6 +1682,10 @@ function dayErrors(d, i) {
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
     if (isRestWorked(d) && !restWorkType(d)) errors.push(`${n}: choose whether the rest day was worked as Overtime or TOIL.`);
     if (d.roster && d.actual === "leave" && !d.actualLeave) errors.push(`${n}: choose the leave type under Actual.`);
+    if (topUpMins(d)) {
+      if (!d.topUp) errors.push(`${n}: ${d.actualLeave} covers ${fmtDur(stdDayMins())} — choose how the other ${fmtDur(topUpMins(d))} is covered (Annual Leave, TOIL or worked).`);
+      else if (d.topUp === "worked" && !(isTime(d.topFrom) && isTime(d.topTo))) errors.push(`${n}: enter the times you worked to top up the leave.`);
+    }
     if (d.roster === "times" && d.actual === "early") {
       if (!d.actualMins) errors.push(`${n}: how early did you finish?`);
       else if (d.actualMins >= shiftMins(d.rosterFrom, d.rosterTo)) errors.push(`${n}: finished early by more than the whole shift.`);
@@ -2526,6 +2619,8 @@ function bind() {
     onRosterChange();
   });
   $("pRosterLine").addEventListener("change", onRosterChange);
+  $("pStdDay").addEventListener("change", onLeaveRulesChange);
+  $("pStdDayLeave").addEventListener("change", onLeaveRulesChange);
   $("pRosterStart").addEventListener("change", onRosterChange);
   $("pRoadBase").addEventListener("change", () => { state.profile.roadBase = $("pRoadBase").value; saveState(); toast("Road base saved."); });
   ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {

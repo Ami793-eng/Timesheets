@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.02-5">
+  <link rel="stylesheet" href="styles.css?v=2026.11.02-6">
 </head>
 <body>
   <header class="app-header">
@@ -245,6 +245,17 @@
           </div>
         </fieldset>
 
+        <fieldset class="sub leave-rules">
+          <legend>Leave rules</legend>
+          <p class="hint">Some leave pays a standard day rather than your full shift. On a longer shift the app asks how the rest is covered (Annual Leave, TOIL or worked). Check these with HR. You can change them any time.</p>
+          <div class="field">
+            <label for="pStdDay">Standard day</label>
+            <select id="pStdDay"></select>
+          </div>
+          <span class="label">Leave paid as a standard day</span>
+          <div class="checks" id="pStdDayLeave"></div>
+        </fieldset>
+
         <fieldset class="sub recipients">
           <legend>Email recipients</legend>
           <p class="hint">Add as many ORMs, DCMs and supervisors as you need. Tick <em>Default</em> on the ones usually sent to; you choose exactly who gets it each time you send. The greeting uses their first name ("Hello John").</p>
@@ -298,7 +309,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.02-5</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.02-6</span></p>
       </div>
     </section>
   </main>
@@ -356,6 +367,6 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.02-5"></script>
+  <script src="app.js?v=2026.11.02-6"></script>
 </body>
 </html>

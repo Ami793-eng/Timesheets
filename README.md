@@ -32,6 +32,12 @@ Staff fill in their week (they can save it and come back during the week), publi
     - **By default** the Roster row keeps the shift times (19:00–07:00), so the length of the shift is clear. The Actual row shows the hour worked (10:00–11:00), and column M reads "Annual Leave 11h – Meeting 10:00–11:00".
     - **"Show the leave in the Roster row"** (tick box): the Roster row shows **Annual Leave** instead, and the note records the shift times: "Annual Leave 11h (rostered 19:00–07:00) – Meeting 10:00–11:00".
   - **Leave:** Annual Leave, Parental Leave, Self-Certified or Certified Sick Leave, Force Majeure, Study Leave or Shift Swap. The leave type goes in the Actual row.
+  - **Standard-day leave** (e.g. Interview Leave, Marriage Leave): only a standard day is paid (7h 48m by default), so on a 12h shift the app asks how the other **4h 12m** is covered:
+    - **Annual Leave** → note "Interview Leave 7h 48m + Annual Leave 4h 12m"
+    - **TOIL** → note "Interview Leave 7h 48m + TOIL 4h 12m"
+    - **Worked the rest** → the Actual row shows the worked times (pre-filled as the end of the shift, e.g. 14:48–19:00), and the note reads "Interview Leave 7h 48m – worked 14:48–19:00 (4h 12m)"
+
+    Which leave types count, and the standard day length, are set in **My details → Leave rules** (check with HR).
   - **Other times** or **Not worked**.
   - **Rest day worked:** tap **Worked (OT / TOIL)** on the rest day, then choose **Worked – Overtime** or **Worked – TOIL** and enter the times.
     - Overtime From/To always match the actual times. This includes a meeting or training on a rest day, for example 10:00–11:00. The reason box suggests Meeting, Training or Cover.
