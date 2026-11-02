@@ -96,6 +96,12 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Android / Chrome:** installs in one tap.
   - **iPhone:** shows the steps (Safari → Share → Add to Home Screen).
   - **Offline:** it also opens with no signal, using the last version it saw online.
+- **Forms:** a separate tab for filling in official HSE forms, such as the HR 108 leave forms.
+  - **Get a form:** the tab lists links to the official forms on hse.ie. Download the PDF on your phone, then tap **Add a form**. It stays on the device (IndexedDB) for reuse.
+  - **Fill it in:** the app reads the form's fillable boxes in page order. It pre-fills name (or first name and surname), personnel number, grade, department, work location, email, phone and today's date from My details. You fill in the rest; date boxes have a date picker. Manager and HR sections are grouped separately and left blank.
+  - **Signature:** your signature is placed in the employee signature box. Manager signature boxes are left blank.
+  - **Send it:** tap **Save & make PDF**, then **Email with PDF attached** (share sheet; addresses copied) or **Download PDF**. Filled forms are kept under *Filled forms* to reopen and resend.
+  - **Forms that aren't fillable** (no boxes in the PDF) can't be filled automatically yet; a layout has to be added for them.
 - **Appearance:** set in My details. Choose a colour (Teal, NAS Green, Navy, Plum or Slate) and Light, Dark or Match phone.
 - **Backup:** export or import a backup file in My details.
 
@@ -177,6 +183,7 @@ Then open http://localhost:8000.
 | `manifest.webmanifest`, `sw.js`, `icons/` | Add to Home Screen, app icon and offline support |
 | `lib/exceljs.min.js` | Excel library (ExcelJS 4.4.0, MIT licence), bundled so there's no CDN dependency |
 | `lib/jspdf.umd.min.js` | PDF library (jsPDF 2.5.2, MIT licence) |
+| `forms.js`, `lib/pdf-lib.min.js` | Forms tab: fills official fillable PDFs (pdf-lib 1.17.1, MIT licence) |
 | `template.xlsx` | The NAS timesheet template the app fills in |
 | `fonts/` | Handwriting fonts for typed signatures (open licences, see `fonts/LICENSES.txt`) |
 

@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.02-6">
+  <link rel="stylesheet" href="styles.css?v=2026.11.02-7">
 </head>
 <body>
   <header class="app-header">
@@ -36,6 +36,7 @@
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button class="tab" role="tab" data-tab="timesheet" aria-selected="true">Timesheet</button>
         <button class="tab" role="tab" data-tab="library" aria-selected="false">Library</button>
+        <button class="tab" role="tab" data-tab="forms" aria-selected="false">Forms</button>
         <button class="tab" role="tab" data-tab="profile" aria-selected="false">My details</button>
       </nav>
     </div>
@@ -157,6 +158,28 @@
       <div id="libraryList" class="library-list"></div>
     </section>
 
+    <!-- ============ FORMS ============ -->
+    <section id="tab-forms" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <h2>Forms</h2>
+        <p class="muted">Fill in official HSE forms (e.g. HR 108 leave forms) with your details and signature, then email or download the PDF.</p>
+        <div class="actions">
+          <label class="btn btn--primary" for="formUpload">＋ Add a form (PDF)</label>
+          <input type="file" id="formUpload" accept="application/pdf,.pdf" class="visually-hidden">
+        </div>
+        <details class="official">
+          <summary>Get the official HSE forms</summary>
+          <ul class="official__list" id="officialForms"></ul>
+          <p class="hint">Open a form, download the PDF to your phone, then tap <strong>Add a form</strong>. Always check you have the latest version on the HSE site.</p>
+        </details>
+      </div>
+      <div id="formEditor" class="card form-ed" hidden></div>
+      <h3 class="sub-h">My forms</h3>
+      <div id="formTemplates"></div>
+      <h3 class="sub-h">Filled forms</h3>
+      <div id="filledForms"></div>
+    </section>
+
     <!-- ============ PROFILE ============ -->
     <section id="tab-profile" class="panel" role="tabpanel" hidden>
       <div class="card">
@@ -170,6 +193,18 @@
           <div class="field">
             <label for="pNumber">Staff number</label>
             <input type="text" id="pNumber" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="pGrade">Grade / job title <span class="opt">for forms</span></label>
+            <input type="text" id="pGrade" placeholder="e.g. Advanced Paramedic">
+          </div>
+          <div class="field">
+            <label for="pDept">Department / unit <span class="opt">for forms</span></label>
+            <input type="text" id="pDept" placeholder="e.g. NEOC / Clinical Hub">
+          </div>
+          <div class="field">
+            <label for="pPhone">Phone <span class="opt">for forms</span></label>
+            <input type="tel" id="pPhone" autocomplete="tel">
           </div>
           <div class="field">
             <label for="pBase">Place of work / base</label>
@@ -309,7 +344,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.02-6</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.02-7</span></p>
       </div>
     </section>
   </main>
@@ -367,6 +402,7 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="app.js?v=2026.11.02-6"></script>
+  <script src="forms.js?v=2026.11.02-7" defer></script>
+  <script src="app.js?v=2026.11.02-7"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-6";
+const APP_VERSION = "2026.11.02-7";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -588,6 +588,7 @@ function showTab(name) {
   document.body.classList.toggle("has-bar", name === "timesheet" && !!currentSheet());
   document.querySelectorAll(".panel").forEach(p => { p.hidden = p.id !== `tab-${name}`; });
   if (name === "library") renderLibrary();
+  if (name === "forms" && typeof renderForms === "function") renderForms();
   if (name === "timesheet") renderTimesheet();
   if (name === "profile") { renderProfile(); resizeSigPad(); }
   window.scrollTo({ top: 0 });
@@ -605,6 +606,9 @@ function profileBase() {
 function renderProfile() {
   const p = state.profile;
   $("pName").value = p.name;
+  $("pGrade").value = p.grade || "";
+  $("pDept").value = p.dept || "";
+  $("pPhone").value = p.phone || "";
   $("pNumber").value = p.number;
   $("pBase").innerHTML = opt("", "— Select —", !p.base) + STATIONS.map(s => opt(s, s, p.base === s)).join("");
   $("pBaseOther").value = p.baseOther;
@@ -679,6 +683,9 @@ function onRosterChange() {
 function saveProfile() {
   const p = state.profile;
   p.name = $("pName").value.trim();
+  p.grade = $("pGrade").value.trim();
+  p.dept = $("pDept").value.trim();
+  p.phone = $("pPhone").value.trim();
   p.number = $("pNumber").value.trim();
   p.base = $("pBase").value;
   p.baseOther = $("pBaseOther").value.trim();
