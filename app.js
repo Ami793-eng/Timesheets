@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-7";
+const APP_VERSION = "2026.11.02-8";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -609,6 +609,7 @@ function renderProfile() {
   $("pGrade").value = p.grade || "";
   $("pDept").value = p.dept || "";
   $("pPhone").value = p.phone || "";
+  $("pPps").value = p.pps || "";
   $("pNumber").value = p.number;
   $("pBase").innerHTML = opt("", "— Select —", !p.base) + STATIONS.map(s => opt(s, s, p.base === s)).join("");
   $("pBaseOther").value = p.baseOther;
@@ -686,6 +687,7 @@ function saveProfile() {
   p.grade = $("pGrade").value.trim();
   p.dept = $("pDept").value.trim();
   p.phone = $("pPhone").value.trim();
+  p.pps = $("pPps").value.replace(/\s+/g, "").toUpperCase();
   p.number = $("pNumber").value.trim();
   p.base = $("pBase").value;
   p.baseOther = $("pBaseOther").value.trim();

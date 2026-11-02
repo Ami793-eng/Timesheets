@@ -21,6 +21,51 @@ const OFFICIAL_FORMS = [
 
 const fx = { open: null, file: null, fields: [], values: {}, recordId: null };
 
+/* ---------- made-to-measure setups for specific HSE forms ----------
+ * Used when a form's own box names are unclear. Each profile can give a box a
+ * proper label, say what to pre-fill (fill), move it to the manager section
+ * (others), and add a signature position where the form has no signature box.
+ */
+const FORM_PROFILES = [
+  {
+    id: "hr108d",
+    title: "HR 108(d) Bereavement Leave",
+    match: names => names.has("Relationship of deceased to employee") && names.has("Date of death"),
+    fields: {
+      "Surname":                              { label: "Surname", fill: "surname" },
+      "First name":                           { label: "First name", fill: "first" },
+      "Grade":                                { label: "Grade", fill: "grade" },
+      "personnel no":                         { label: "Personnel No", fill: "number" },
+      "location":                             { label: "Location", fill: "base" },
+      "PPS no":                               { label: "PPS No", fill: "ppsMain" },
+      "Text8":                                { label: "PPS No – letters", fill: "ppsExtra" },
+      "Relationship of deceased to employee": { label: "Relationship of deceased to employee" },
+      "Date of death":                        { label: "Date of death", date: true },
+      "No of days leave applied for":         { label: "No. of days leave applied for" },
+      "Date from":                            { label: "Date from", date: true },
+      "Date to":                              { label: "Date to", date: true },
+      "Date":                                 { label: "Date (signed)", fill: "today", date: true },
+      "Application Approved":                 { label: "Application approved", others: true },
+      "Days of Leave":                        { label: "No. of days leave approved", others: true },
+      "Date From Leave":                      { label: "Approved date from", others: true, date: true },
+      "Date to Leave":                        { label: "Approved date to", others: true, date: true },
+      "Leave not approved":                   { label: "If not approved, reason", others: true },
+      "Leave not approved 2":                 { label: "Reason (continued)", others: true },
+      "Name1":                                { label: "Manager name", others: true },
+      "Date1":                                { label: "Manager date", others: true, date: true },
+      "Contact phone no":                     { label: "Manager contact phone no", others: true },
+      "Grade1":                               { label: "Manager grade", others: true },
+      "E-mail address":                       { label: "Manager e-mail address", others: true }
+    },
+    // The employee "Signature:" line has no box on this form — sign beside the label, left of "Date :".
+    signatures: [{ label: "Employee signature", page: 0, x: 100, y: 462, w: 196, h: 20 }]
+  }
+];
+
+function findProfile(names, title = "") {
+  return FORM_PROFILES.find(p => p.match(new Set(names), title)) || null;
+}
+
 /* ---------- storage: blank PDFs in IndexedDB ---------- */
 
 function idb() {
@@ -96,37 +141,78 @@ async function readFields(bytes) {
       else { const pref = widget.P && widget.P(); if (pref) page = Math.max(0, pages.findIndex(pg => pg.ref === pref)); }
     }
     const others = OTHERS_RE.test(label) || OTHERS_RE.test(name);
+    let maxLen = 0, comb = false;
+    if (f instanceof PDFTextField) { try { maxLen = f.getMaxLength() || 0; comb = f.isCombed(); } catch { /* ignore */ } }
     if (type === "text" && SIGN_RE.test(label + " " + name) && !/date/i.test(label)) type = "signature";
-    fields.push({ name, label, type, options, page, x, y, w, h, others, readOnly: f.isReadOnly && f.isReadOnly() });
+    fields.push({ name, label, type, options, page, x, y, w, h, others, maxLen, comb, readOnly: f.isReadOnly && f.isReadOnly() });
+  }
+  const profile = findProfile(fields.map(f => f.name), doc.getTitle() || "");
+  if (profile) {
+    for (const f of fields) {
+      const o = profile.fields[f.name];
+      if (!o) continue;
+      if (o.label) f.label = o.label;
+      if (o.others !== undefined) f.others = o.others;
+      if (o.fill) f.fill = o.fill;
+      if (o.date) f.date = true;
+      f.noGuess = true;                              // profile decides; no guessing
+    }
+    (profile.signatures || []).forEach((sg, k) => fields.push({ name: `__sig${k}`, label: sg.label, type: "signature", synthetic: true, options: [], page: sg.page, x: sg.x, y: sg.y, w: sg.w, h: sg.h, others: false }));
   }
   fields.sort((a, b) => a.page - b.page || (b.y - a.y) || (a.x - b.x));
-  return { fields, pageCount: pages.length };
+  return { fields, pageCount: pages.length, profile: profile ? { id: profile.id, title: profile.title } : null };
 }
 
 /* ---------- pre-filling from My details ---------- */
 
-function guessValue(field) {
+// What a box should be pre-filled with: a key (surname, number, today…) or null.
+function guessKey(field) {
   if (field.others || field.type !== "text") return null;
-  const p = state.profile;
+  if (field.fill) return field.fill;
+  if (field.noGuess) return null;
   const l = ` ${(field.label + " " + field.name).toLowerCase().replace(/[^a-z]+/g, " ")} `;
-  const [first, ...rest] = String(p.name || "").trim().split(/\s+/);
-  const last = rest.join(" ");
-  const today = displayDate(isoLocal(new Date()));
-  if (/ (surname|last name|family name) /.test(l)) return last || null;
-  if (/ (first name|forename|christian name|given name) /.test(l)) return first || null;
-  if (/ (personnel|payroll|staff no|staff number|employee no|employee number|pers no|employee id|staff id) /.test(l)) return p.number || null;
-  if (/ name /.test(l) && !/ (course|college|institution|child|children|spouse|partner|exam|company|organisation|organization|employer|interview|body|university|school|next of kin) /.test(l)) return p.name || null;
-  if (/ (grade|job title|position|post title|title of post) /.test(l)) return p.grade || null;
-  if (/ (department|dept|unit|service area|division|section) /.test(l)) return p.dept || null;
-  if (/ (location|base|station|work place|workplace|place of work|hospital) /.test(l)) return profileBase() || null;
-  if (/ (e mail|email) /.test(l)) return p.meEmail || null;
-  if (/ (phone|mobile|telephone|tel|contact no|contact number) /.test(l)) return p.phone || null;
   const lbl = ` ${field.label.toLowerCase().replace(/[^a-z]+/g, " ").trim()} `;
-  if (/^ (date|todays date|today s date|date signed|date of application|signature date|date of request|employee date) $/.test(lbl)) return today;
+  if (/ (surname|last name|family name) /.test(l)) return "surname";
+  if (/ (first name|forename|christian name|given name) /.test(l)) return "first";
+  if (/ (personnel|payroll|staff no|staff number|employee no|employee number|pers no|employee id|staff id) /.test(l)) return "number";
+  if (/ pps /.test(l)) return "pps";
+  if (/ name /.test(l) && !/ (course|college|institution|child|children|spouse|partner|exam|company|organisation|organization|employer|interview|body|university|school|next of kin|deceased) /.test(l)) return "name";
+  if (/ (grade|job title|position|post title|title of post) /.test(l)) return "grade";
+  if (/ (department|dept|unit|service area|division|section) /.test(l)) return "dept";
+  if (/ (location|base|station|work place|workplace|place of work|hospital) /.test(l)) return "base";
+  if (/ (e mail|email) /.test(l)) return "email";
+  if (/ (phone|mobile|telephone|tel|contact no|contact number) /.test(l)) return "phone";
+  if (/^ (date|todays date|today s date|date signed|date of application|signature date|date of request|employee date) $/.test(lbl)) return "today";
   return null;
 }
 
+function valueFor(key) {
+  const p = state.profile;
+  const [first, ...rest] = String(p.name || "").trim().split(/\s+/);
+  const pps = String(p.pps || "").replace(/\s+/g, "").toUpperCase();
+  return {
+    surname: rest.join(" "), first, name: p.name, number: p.number, grade: p.grade, dept: p.dept,
+    base: profileBase(), email: p.meEmail, phone: p.phone, today: displayDate(isoLocal(new Date())),
+    pps, ppsMain: pps.slice(0, 7), ppsExtra: pps.slice(7, 9)
+  }[key] || null;
+}
+
 /* ---------- making the filled PDF ---------- */
+
+// Fit a value into a box with a character limit (e.g. 8 one-character date squares).
+function fitText(v, maxLen) {
+  v = String(v ?? "");
+  if (!maxLen || v.length <= maxLen) return { text: v, ok: true };
+  const m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(v.trim());
+  if (m) {
+    const dd = m[1].padStart(2, "0"), mm = m[2].padStart(2, "0"), yyyy = m[3].length === 2 ? "20" + m[3] : m[3];
+    if (maxLen >= 8) return { text: dd + mm + yyyy, ok: true };
+    if (maxLen >= 6) return { text: dd + mm + yyyy.slice(2), ok: true };
+  }
+  const squeezed = v.replace(/[\s\-\/.]/g, "");
+  if (squeezed.length <= maxLen) return { text: squeezed, ok: true };
+  return { text: squeezed.slice(0, maxLen), ok: false };
+}
 
 // Standard PDF fonts can't draw some characters; swap them for safe ones.
 function pdfSafe(t) {
@@ -139,12 +225,19 @@ async function buildFilledPdf(template, values, fields) {
   const form = doc.getForm();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const pages = doc.getPages();
+  const tooLong = [];
   for (const fd of fields) {
     let f; try { f = form.getField(fd.name); } catch { continue; }
     const v = values[fd.name];
     try {
       if (fd.type === "signature") continue;
-      if (f instanceof PDFTextField) { if (v != null && v !== "") f.setText(pdfSafe(v)); }
+      if (f instanceof PDFTextField) {
+        if (v != null && v !== "") {
+          const fit = fitText(pdfSafe(v), f.getMaxLength());
+          if (!fit.ok) tooLong.push(`${fd.label}: "${v}" (max ${f.getMaxLength()} characters)`);
+          f.setText(fit.text);
+        }
+      }
       else if (f instanceof PDFCheckBox) { v ? f.check() : f.uncheck(); }
       else if ((f instanceof PDFDropdown || f instanceof PDFOptionList || f instanceof PDFRadioGroup) && v) f.select(v);
     } catch (err) { console.warn("Skipped field", fd.name, err); }
@@ -159,15 +252,16 @@ async function buildFilledPdf(template, values, fields) {
       const scale = Math.min((fd.w - 4) / png.width, (fd.h - 2) / png.height);
       const w = png.width * scale, h = png.height * scale;
       // The empty signature box would be drawn on top of the image, so remove it and keep its outline.
-      try {
+      if (!fd.synthetic) try {
         const fld = form.getField(fd.name);
         fld.acroField.getWidgets().forEach(w => w.dict.set(PDFName.of("F"), PDFNumber.of(2)));   // 2 = hidden
         if (fld.enableReadOnly) fld.enableReadOnly();
       } catch { /* leave as is */ }
-      page.drawRectangle({ x: fd.x, y: fd.y, width: fd.w, height: fd.h, borderColor: rgb(0, 0, 0), borderWidth: 1 });
+      if (!fd.synthetic) page.drawRectangle({ x: fd.x, y: fd.y, width: fd.w, height: fd.h, borderColor: rgb(0, 0, 0), borderWidth: 1 });
       page.drawImage(png, { x: fd.x + 2, y: fd.y + (fd.h - h) / 2, width: w, height: h });
     }
   }
+  if (tooLong.length) alert("These didn't fit their boxes and were shortened — please check:\n\n• " + tooLong.join("\n• "));
   const out = await doc.save();
   const base = (template.name || "Form").replace(/\.pdf$/i, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "");
   const who = String(state.profile.name || "").replace(/[^a-zA-Z0-9]+/g, "");
@@ -219,12 +313,13 @@ async function addFormFile(file) {
   toast("Reading the form…");
   try {
     const bytes = await file.arrayBuffer();
-    const { fields, pageCount } = await readFields(bytes);
-    const rec = { id: newId(), name: file.name.replace(/\.pdf$/i, ""), addedAt: new Date().toISOString(), bytes, fieldCount: fields.length, pageCount };
+    const { fields, pageCount, profile } = await readFields(bytes);
+    const real = fields.filter(f => !f.synthetic);
+    const rec = { id: newId(), name: profile ? profile.title : file.name.replace(/\.pdf$/i, ""), addedAt: new Date().toISOString(), bytes, fieldCount: real.length, pageCount, profile: profile?.id || null };
     await idbPut(rec);
     await renderForms();
-    toast(fields.length ? `Added — ${fields.length} boxes found.` : "Added, but this PDF has no fillable boxes.", !fields.length);
-    if (fields.length) openFormEditor(rec.id);
+    toast(real.length ? `Added${profile ? ` — recognised as ${profile.title}` : ` — ${real.length} boxes found`}.` : "Added, but this PDF has no fillable boxes.", !real.length);
+    if (real.length) openFormEditor(rec.id);
   } catch (err) {
     console.error(err);
     alert("That PDF couldn't be read:\n\n" + err.message);
@@ -239,7 +334,16 @@ async function openFormEditor(templateId, recordId = null) {
   fx.open = t; fx.fields = fields; fx.recordId = recordId; fx.file = null;
   fx.values = rec ? { ...rec.values } : {};
   fx.prefilled = new Set();
-  if (!rec) for (const f of fields) { const g = guessValue(f); if (g) { fx.values[f.name] = g; fx.prefilled.add(f.name); } }
+  if (!rec) {
+    // Each detail goes in the first (top-most) matching box only — e.g. "Name" but not a later "Name1".
+    const used = new Set();
+    for (const f of fields) {
+      const k = guessKey(f);
+      if (!k || (used.has(k) && !f.fill)) continue;
+      const v = valueFor(k);
+      if (v) { fx.values[f.name] = v; fx.prefilled.add(f.name); used.add(k); }
+    }
+  }
   renderFormEditor();
   $("formEditor").hidden = false;
   $("formEditor").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -261,8 +365,9 @@ function fieldInput(f) {
   }
   if (f.type === "check") return `<label class="check check--small form-check"><input type="checkbox" data-ff="${esc(f.name)}" ${v ? "checked" : ""}> <span>${esc(f.label)}</span></label>`;
   if (f.type === "choice") return `<div class="field"><label for="${id}">${esc(f.label)}</label><select id="${id}" data-ff="${esc(f.name)}">${opt("", "— Select —", !v)}${f.options.map(o => opt(o, o, v === o)).join("")}</select></div>`;
-  const isDate = /date|commenc|start|finish|end|from|until|return/i.test(f.label) && !/name|reason|course/i.test(f.label);
-  return `<div class="field"><label for="${id}">${esc(f.label)}${tag}</label>
+  const isDate = f.date || (/date|commenc|start|finish|end|from|until|return/i.test(f.label) && !/name|reason|course|days/i.test(f.label));
+  const lim = f.maxLen ? ` <span class="opt">${f.comb ? `${f.maxLen} boxes` : `max ${f.maxLen}`}</span>` : "";
+  return `<div class="field"><label for="${id}">${esc(f.label)}${tag}${isDate ? "" : lim}</label>
     <div class="ff-row"><input type="text" id="${id}" data-ff="${esc(f.name)}" value="${esc(v ?? "")}" ${isDate ? `placeholder="dd/mm/yyyy"` : ""}>
     ${isDate ? `<input type="date" class="ff-date" data-ff-date="${esc(f.name)}" aria-label="Pick a date">` : ""}</div></div>`;
 }
