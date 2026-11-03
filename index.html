@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.03-2">
+  <link rel="stylesheet" href="styles.css?v=2026.11.03-3">
 </head>
 <body>
   <header class="app-header">
@@ -36,6 +36,7 @@
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button class="tab" role="tab" data-tab="timesheet" aria-selected="true">Timesheet</button>
         <button class="tab" role="tab" data-tab="library" aria-selected="false">Library</button>
+        <button class="tab" role="tab" data-tab="leave" aria-selected="false">Leave</button>
         <button class="tab" role="tab" data-tab="forms" aria-selected="false">Forms</button>
         <button class="tab" role="tab" data-tab="profile" aria-selected="false">My details</button>
       </nav>
@@ -156,6 +157,34 @@
         </div>
       </div>
       <div id="libraryList" class="library-list"></div>
+    </section>
+
+    <!-- ============ LEAVE ============ -->
+    <section id="tab-leave" class="panel" role="tabpanel" hidden>
+      <div class="card">
+        <h2>Leave</h2>
+        <div id="leaveSummary"></div>
+        <div class="actions">
+          <button type="button" class="btn btn--primary" id="leaveNew">＋ Request leave</button>
+        </div>
+      </div>
+      <div id="leaveEditor" class="card form-ed" hidden></div>
+      <h3 class="sub-h">My requests</h3>
+      <div id="leaveList"></div>
+      <details class="card lv-settings">
+        <summary><h3>Leave settings</h3></summary>
+        <div class="field">
+          <label for="lvTo">Send leave requests to</label>
+          <input type="email" id="lvTo" multiple placeholder="Workforce planning email" autocomplete="off">
+          <p class="hint">Separate more than one address with a comma.</p>
+        </div>
+        <label class="check check--small"><input type="checkbox" id="lvCcMe"> <span>CC me (uses My email from My details)</span></label>
+        <div class="grid-2">
+          <div class="field"><label for="lvEnt">Annual leave entitlement <span class="opt">hours a year</span></label><input type="number" id="lvEnt" min="0" step="0.5" inputmode="decimal" placeholder="e.g. 241.5"></div>
+          <div class="field"><label for="lvCarried">Carried over <span class="opt">hours</span></label><input type="number" id="lvCarried" min="0" step="0.5" inputmode="decimal" placeholder="0"></div>
+        </div>
+        <div class="field"><label for="lvYearStart">Leave year starts</label><select id="lvYearStart"></select></div>
+      </details>
     </section>
 
     <!-- ============ FORMS ============ -->
@@ -350,7 +379,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.03-2</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.03-3</span></p>
       </div>
     </section>
   </main>
@@ -408,8 +437,9 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="form-profiles.js?v=2026.11.03-2" defer></script>
-  <script src="forms.js?v=2026.11.03-2" defer></script>
-  <script src="app.js?v=2026.11.03-2"></script>
+  <script src="form-profiles.js?v=2026.11.03-3" defer></script>
+  <script src="leave.js?v=2026.11.03-3" defer></script>
+  <script src="forms.js?v=2026.11.03-3" defer></script>
+  <script src="app.js?v=2026.11.03-3"></script>
 </body>
 </html>

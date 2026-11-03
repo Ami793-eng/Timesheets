@@ -4,7 +4,7 @@
  */
 const CACHE = "timesheet-hub";
 const CORE = [
-  "./", "index.html", "styles.css", "app.js", "lib/exceljs.min.js", "lib/jspdf.umd.min.js", "lib/pdf-lib.min.js", "form-profiles.js", "forms.js", "template.xlsx",
+  "./", "index.html", "styles.css", "app.js", "lib/exceljs.min.js", "lib/jspdf.umd.min.js", "lib/pdf-lib.min.js", "form-profiles.js", "forms.js", "leave.js", "template.xlsx",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",
   "fonts/dancing-script.woff2", "fonts/great-vibes.woff2", "fonts/caveat.woff2", "fonts/homemade-apple.woff2"
 ];

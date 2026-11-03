@@ -6,7 +6,7 @@ A single document to start a new project or session from. It covers what the app
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.03-2`, 37 commits, all pushed.
+- **State at handover:** app version `2026.11.03-3`, 37 commits, all pushed.
 
 ---
 
@@ -16,8 +16,9 @@ A static web app (no server, no login) that staff use on their phone:
 
 1. **Timesheet:** fill in the week with roster pre-fill. It produces the official **NAS timesheet** (from `template.xlsx`) as a **PDF**, which is emailed to managers.
 2. **Library:** every published timesheet with its history, who it was emailed to and when, and amended versions.
-3. **Forms:** fill in official **HSE HR forms** (fillable PDFs such as the HR 108 leave forms) with saved details and signature.
-4. **My details:** profile, signature, roster, email recipients, leave rules, appearance and backup.
+3. **Leave:** request leave by email, put it on the timesheets and calendar, and track annual leave hours.
+4. **Forms:** fill in official **HSE HR forms** (fillable PDFs such as the HR 108 leave forms) with saved details and signature.
+5. **My details:** profile, signature, roster, email recipients, leave rules, appearance and backup.
 
 It installs to the home screen (PWA) and works offline. All data stays **on the device**.
 
@@ -34,6 +35,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 | `index.html` | All screens (tabs: Timesheet, Library, Forms, My details), dialogs, early theme script |
 | `styles.css` | Mobile-first styling, colour themes, dark mode (`html.dark` class) |
 | `app.js` | Everything except Forms: state, roster, day logic, validation, Excel fill, PDF render, email, library, appearance, PWA |
+| `leave.js` | Leave tab: leave requests, timesheet pre-fill, calendar file, annual leave tracker |
 | `forms.js` | Forms tab: reads and fills fillable PDFs, built-in and uploaded forms |
 | `form-profiles.js`, `forms/` | Setups for each HSE form, and the bundled blank PDFs |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app and offline support (network-first service worker) |
@@ -144,16 +146,17 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 
 1. **Standard-day leave hours:** confirm with HR which leave types pay 7.8h and whether that's right (parked: "we'll come back to the hours").
 2. **HSE forms:** 18 forms are built in. Still to do: get the PDFs for HR 108(b), 108(o) and HR 110 and add setups; HR 108(l) needs text placed by position (no fillable boxes); HR 117 needs a fillable PDF version. Check the filled forms on a real phone and with HR.
-3. **Link leave days to forms:** done for Study, Examination, Interview, Marriage, Parental and Force Majeure leave (dates and days pre-filled; `leaveType` / `leaveFill` in each form setup). Leave that runs across two timesheets gives one form per week for now.
+3. **Leave tab (`leave.js`):** request leave by email (to the workforce planning address in Leave settings), put it on the timesheets (a leave period with `kind: "request"`), add it to the calendar (.ics), and track annual leave hours per leave year (entitlement, carried over, taken, booked, left). Requests are in `state.leaveRequests`. **Next:** seasonal / structured leave reminders (summer, spring, autumn…) once the structured leave policy is supplied.
+4. **Link leave days to forms:** done for Study, Examination, Interview, Marriage, Parental and Force Majeure leave (dates and days pre-filled; `leaveType` / `leaveFill` in each form setup). Leave that runs across two timesheets gives one form per week for now.
    - **The other way round:** saving an HR 108(i) Maternity or HR 108(j) Parental form records `state.leavePeriods` (`leaveRanges` in the form setup) and marks rostered shifts in those dates as leave on draft and future timesheets (`applyLeavePeriods`, `setFormLeavePeriods` in `app.js`). Leave types *Maternity Leave* and *Additional Maternity Leave* were added.
-4. **Payroll confirmations:**
+5. **Payroll confirmations:**
    - Leave on a part day: Roster row as shift times vs "Annual Leave" (currently shift times).
    - Where early-finish / late-start / leave notes go (currently column M).
    - The AMENDED wording and its position (end of subject).
-5. **Real-phone checks:** the share-sheet attachment on iPhone and Android mail apps, and install to home screen.
-6. **No backend:** data is on the device only (backup/export is manual). A shared archive or **manager approval workflow** would need a backend (e.g. Microsoft Lists / Power Automate, as in the original plan).
-7. **Add automated tests to the repo** (Playwright scripts like those used during the build).
-8. **Explainer video:** a 1m46s MP4 was made for friends (made-up person "Alex Sample"). Re-record it after big UI changes.
+6. **Real-phone checks:** the share-sheet attachment on iPhone and Android mail apps, and install to home screen.
+7. **No backend:** data is on the device only (backup/export is manual). A shared archive or **manager approval workflow** would need a backend (e.g. Microsoft Lists / Power Automate, as in the original plan).
+8. **Add automated tests to the repo** (Playwright scripts like those used during the build).
+9. **Explainer video:** a 1m46s MP4 was made for friends (made-up person "Alex Sample"). Re-record it after big UI changes.
 
 ---
 

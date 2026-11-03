@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.03-2";
+const APP_VERSION = "2026.11.03-3";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -139,7 +139,8 @@ let state = {
     signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
   currentId: null,
   sheets: [],
-  leavePeriods: []           // [{ id, formId, type, from, to, source }] — long leave from a filled HSE form
+  leavePeriods: [],          // [{ id, formId, type, from, to, source, kind }] — leave from a filled HSE form or a leave request
+  leaveRequests: []          // leave requested in the Leave tab (leave.js)
 };
 
 const ui = {
@@ -592,6 +593,7 @@ function showTab(name) {
   document.querySelectorAll(".panel").forEach(p => { p.hidden = p.id !== `tab-${name}`; });
   if (name === "library") renderLibrary();
   if (name === "forms" && typeof renderForms === "function") renderForms();
+  if (name === "leave" && typeof renderLeave === "function") renderLeave();
   if (name === "timesheet") renderTimesheet();
   if (name === "profile") { renderProfile(); resizeSigPad(); }
   window.scrollTo({ top: 0 });
@@ -1134,11 +1136,11 @@ function clearLeavePeriod(p) {
   }
 }
 // Replace the leave periods that came from one filled form. Returns what changed, for the message.
-function setFormLeavePeriods(formId, ranges, source) {
+function setFormLeavePeriods(formId, ranges, source, kind = "form") {
   state.leavePeriods = state.leavePeriods || [];
   state.leavePeriods.filter(p => p.formId === formId).forEach(clearLeavePeriod);
   state.leavePeriods = state.leavePeriods.filter(p => p.formId !== formId);
-  const added = ranges.map(r => ({ id: newId(), formId, type: r.type, from: r.from, to: r.to, source }));
+  const added = ranges.map(r => ({ id: newId(), formId, type: r.type, from: r.from, to: r.to, source, kind }));
   state.leavePeriods.push(...added);
   let days = 0, sheets = 0;
   for (const s of state.sheets) { const n = applyLeavePeriods(s); if (n) { days += n; sheets++; } }
@@ -1177,6 +1179,17 @@ function linkedLeaveForm(sheet, run) {
 function leaveFormRow(d, i) {
   const sheet = currentSheet();
   const period = d.leaveSource && d.actual === "leave" && (state.leavePeriods || []).find(p => p.id === d.leaveSource);
+  if (period && period.kind === "request") {
+    const req = (state.leaveRequests || []).find(r => r.id === period.formId);
+    return `
+    <div class="leave-form">
+      <div class="leave-form__text">
+        <strong>${esc(period.type)} — ${req?.status === "approved" ? "approved" : "requested by email"}</strong>
+        <span class="muted">${shortDate(period.from)}${period.from === period.to ? "" : ` – ${shortDate(period.to)}`}</span>
+      </div>
+      <button type="button" class="btn btn--small" data-goto="leave">Open in Leave</button>
+    </div>`;
+  }
   if (period) {
     return `
     <div class="leave-form">
