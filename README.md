@@ -97,11 +97,16 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **iPhone:** shows the steps (Safari → Share → Add to Home Screen).
   - **Offline:** it also opens with no signal, using the last version it saw online.
 - **Forms:** a separate tab for filling in official HSE forms, such as the HR 108 leave forms.
-  - **Get a form:** the tab lists links to the official forms on hse.ie. Download the PDF on your phone, then tap **Add a form**. It stays on the device (IndexedDB) for reuse.
+  - **Built-in forms:** 18 HSE forms are bundled in the `forms/` folder and listed at the top of the tab. Tap one to fill it in; nothing to download. They are: HR 108 (a) Adoptive, (c) Carer's, (d) Bereavement, (e) Examination, (f) Force Majeure, (g) Health & Safety, (h) Jury Service, (i) Maternity, (j) Parental, (k) Paternity, (m) Serious Physical Assault, (n) Marriage, (p) Study, (q) Trade Union, (r) Carry-over of Annual Leave, (s) Interview, (t) Parent's and (u) Unpaid Leave for Medical Care.
+    - **HSE ↗** beside each opens that form on the HSE site, to check for a newer version. If there is one, download it and tap **Add a form**: the app recognises it and uses your copy instead of the built-in one.
+  - **Other forms:** links to forms that aren't built in (HR 108(b), (l), (o), HR 110, HR 117) are under *Other HSE forms*. Download a fillable PDF and tap **Add a form**. It stays on the device (IndexedDB) for reuse.
   - **Fill it in:** the app reads the form's fillable boxes in page order. It pre-fills name (or first name and surname), personnel number, grade, department, work location, email, phone and today's date from My details. You fill in the rest; date boxes have a date picker. Manager and HR sections are grouped separately and left blank.
   - **Signature:** your signature is placed in the employee signature box. Manager signature boxes are left blank.
   - **Send it:** tap **Save & make PDF**, then **Email with PDF attached** (share sheet; addresses copied) or **Download PDF**. Filled forms are kept under *Filled forms* to reopen and resend.
-  - **Recognised forms:** some HSE forms get a made-to-measure setup in `FORM_PROFILES` (in `forms.js`), with proper labels, manager boxes kept blank, and a signature position where the form has no signature box. **HR 108(d) Bereavement Leave** is set up this way.
+  - **Made-to-measure setups:** every built-in form has a setup in `FORM_PROFILES` (in `form-profiles.js`): proper labels for every box, manager and HR boxes kept blank, a signature position where the form has no signature box, and decoration boxes hidden.
+    - **Optional sections** (e.g. Maternity Leave postponement, the Parental and Carer's Leave *Confirmation Agreement* page) are folded away and only written to the PDF when you tick **Include this section on the form**.
+    - **Square-per-character boxes** (e.g. Carer's Leave) take one value, such as a date or PPS number, and spread it across the squares.
+    - **Radio buttons** show readable choices (e.g. "the qualifying adopter of the child").
   - **Character-limited boxes** (e.g. 8 squares for a date) are filled to fit: dates become ddmmyyyy, and PPS is split into digits and letters. If something still doesn't fit, the app says so.
   - **Safer guessing on other forms:** each of your details only goes in the first matching box (e.g. "Name", not a manager's "Name1").
   - **Forms that aren't fillable** (no boxes in the PDF) can't be filled automatically yet; a layout has to be added for them.
@@ -187,6 +192,8 @@ Then open http://localhost:8000.
 | `lib/exceljs.min.js` | Excel library (ExcelJS 4.4.0, MIT licence), bundled so there's no CDN dependency |
 | `lib/jspdf.umd.min.js` | PDF library (jsPDF 2.5.2, MIT licence) |
 | `forms.js`, `lib/pdf-lib.min.js` | Forms tab: fills official fillable PDFs (pdf-lib 1.17.1, MIT licence) |
+| `form-profiles.js` | Setups for each HSE form (labels, pre-fill, manager boxes, signature position) |
+| `forms/` | Blank official HSE forms, built into the app |
 | `template.xlsx` | The NAS timesheet template the app fills in |
 | `fonts/` | Handwriting fonts for typed signatures (open licences, see `fonts/LICENSES.txt`) |
 

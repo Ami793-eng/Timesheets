@@ -7,63 +7,30 @@
  */
 "use strict";
 
-const OFFICIAL_FORMS = [
-  { code: "HR 108(p)", name: "Study Leave", url: "https://assets.hse.ie/media/documents/HR_108p_employee_application_form_for_study_leave.pdf" },
-  { code: "HR 108(e)", name: "Examination Leave", url: "https://assets.hse.ie/media/documents/HR_108e_application_form_for_examination_leave.pdf" },
-  { code: "HR 108(s)", name: "Interview Leave", url: "https://assets.hse.ie/media/documents/HR_108s_employee_application_form_for_interview_leave.pdf" },
-  { code: "HR 108(j)", name: "Parental Leave", url: "https://assets.hse.ie/media/documents/hr-108-j-parental-leave-application-form_V5.pdf" },
-  { code: "HR 108(c)", name: "Carer's Leave", url: "https://assets.hse.ie/media/documents/HR_108c_employee_carers_leave_application_form.pdf" },
-  { code: "HR 108(o)", name: "Special Unpaid Leave", url: "https://assets.hse.ie/media/documents/HR_108o_employee_application_form_for_unpaid_leave.pdf" },
-  { code: "HR 108(g)", name: "Health & Safety Leave", url: "https://assets.hse.ie/media/documents/HR_108g_health_and_safety_leave_application_form_V5.pdf" },
-  { code: "HR 108(l)", name: "Reserve Defence Forces Leave", url: "https://assets.hse.ie/media/documents/HR_108l_employee_application_form_for_reserve_defence_forces_leave.pdf" },
-  { code: "All HR forms", name: "HSE HR forms page (maternity, paternity, parent's leave and more)", url: "https://healthservice.hse.ie/staff/benefits-and-services/hr-forms" }
-];
+// The form setups (FORM_PROFILES) and the list of other HSE forms live in form-profiles.js.
 
-const fx = { open: null, file: null, fields: [], values: {}, recordId: null };
-
-/* ---------- made-to-measure setups for specific HSE forms ----------
- * Used when a form's own box names are unclear. Each profile can give a box a
- * proper label, say what to pre-fill (fill), move it to the manager section
- * (others), and add a signature position where the form has no signature box.
- */
-const FORM_PROFILES = [
-  {
-    id: "hr108d",
-    title: "HR 108(d) Bereavement Leave",
-    match: names => names.has("Relationship of deceased to employee") && names.has("Date of death"),
-    fields: {
-      "Surname":                              { label: "Surname", fill: "surname" },
-      "First name":                           { label: "First name", fill: "first" },
-      "Grade":                                { label: "Grade", fill: "grade" },
-      "personnel no":                         { label: "Personnel No", fill: "number" },
-      "location":                             { label: "Location", fill: "base" },
-      "PPS no":                               { label: "PPS No", fill: "ppsMain" },
-      "Text8":                                { label: "PPS No – letters", fill: "ppsExtra" },
-      "Relationship of deceased to employee": { label: "Relationship of deceased to employee" },
-      "Date of death":                        { label: "Date of death", date: true },
-      "No of days leave applied for":         { label: "No. of days leave applied for" },
-      "Date from":                            { label: "Date from", date: true },
-      "Date to":                              { label: "Date to", date: true },
-      "Date":                                 { label: "Date (signed)", fill: "today", date: true },
-      "Application Approved":                 { label: "Application approved", others: true },
-      "Days of Leave":                        { label: "No. of days leave approved", others: true },
-      "Date From Leave":                      { label: "Approved date from", others: true, date: true },
-      "Date to Leave":                        { label: "Approved date to", others: true, date: true },
-      "Leave not approved":                   { label: "If not approved, reason", others: true },
-      "Leave not approved 2":                 { label: "Reason (continued)", others: true },
-      "Name1":                                { label: "Manager name", others: true },
-      "Date1":                                { label: "Manager date", others: true, date: true },
-      "Contact phone no":                     { label: "Manager contact phone no", others: true },
-      "Grade1":                               { label: "Manager grade", others: true },
-      "E-mail address":                       { label: "Manager e-mail address", others: true }
-    },
-    // The employee "Signature:" line has no box on this form — sign beside the label, left of "Date :".
-    signatures: [{ label: "Employee signature", page: 0, x: 100, y: 462, w: 196, h: 20 }]
-  }
-];
+const fx = { open: null, file: null, fields: [], values: {}, recordId: null, groups: {} };
 
 function findProfile(names, title = "") {
   return FORM_PROFILES.find(p => p.match(new Set(names), title)) || null;
+}
+const profileById = id => FORM_PROFILES.find(p => p.id === id) || null;
+const profileName = p => `${p.code} ${p.title}`;
+
+/* ---------- built-in forms (bundled blank PDFs in /forms) ---------- */
+
+const builtinCache = new Map();
+// A form template: a built-in form ("builtin:hr108p") or one the user added (IndexedDB).
+async function getTemplate(id) {
+  if (!String(id).startsWith("builtin:")) return idbGet(id);
+  const p = profileById(id.slice(8));
+  if (!p?.file) return null;
+  if (!builtinCache.has(id)) {
+    const res = await fetch(p.file);
+    if (!res.ok) throw new Error(`Couldn't load ${p.file} (${res.status}).`);
+    builtinCache.set(id, await res.arrayBuffer());
+  }
+  return { id, name: profileName(p), bytes: builtinCache.get(id), profile: p.id, builtin: true };
 }
 
 /* ---------- storage: blank PDFs in IndexedDB ---------- */
@@ -110,7 +77,7 @@ function loadPdfLib() {
 const OTHERS_RE = /manager|line\s*man|supervisor|approv|authori[sz]|\bhr\b|human resources|office use|for official|witness|head of|director|signed on behalf|recommend|countersign/i;
 const SIGN_RE = /sign/i;
 
-async function readFields(bytes) {
+async function readFields(bytes, profileId = null) {
   const { PDFDocument, PDFName, PDFTextField, PDFCheckBox, PDFDropdown, PDFRadioGroup, PDFOptionList, PDFSignature } = await loadPdfLib();
   const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
   const pages = doc.getPages();
@@ -146,21 +113,37 @@ async function readFields(bytes) {
     if (type === "text" && SIGN_RE.test(label + " " + name) && !/date/i.test(label)) type = "signature";
     fields.push({ name, label, type, options, page, x, y, w, h, others, maxLen, comb, readOnly: f.isReadOnly && f.isReadOnly() });
   }
-  const profile = findProfile(fields.map(f => f.name), doc.getTitle() || "");
+  const profile = (profileId && profileById(profileId)) || findProfile(fields.map(f => f.name), doc.getTitle() || "");
   if (profile) {
     for (const f of fields) {
       const o = profile.fields[f.name];
       if (!o) continue;
+      if (o.hide) { f.hidden = true; continue; }
       if (o.label) f.label = o.label;
       if (o.others !== undefined) f.others = o.others;
+      if (o.type) f.type = o.type;
       if (o.fill) f.fill = o.fill;
       if (o.date) f.date = true;
+      if (o.long) f.long = true;
+      if (o.group) f.group = o.group;
+      if (o.options) f.optionLabels = o.options;
       f.noGuess = true;                              // profile decides; no guessing
     }
-    (profile.signatures || []).forEach((sg, k) => fields.push({ name: `__sig${k}`, label: sg.label, type: "signature", synthetic: true, options: [], page: sg.page, x: sg.x, y: sg.y, w: sg.w, h: sg.h, others: false }));
+    // One value spread over several boxes (e.g. a date written one digit per square).
+    for (const c of profile.combos || []) {
+      const parts = c.parts.map(n => fields.find(f => f.name === n)).filter(Boolean);
+      if (!parts.length) continue;
+      parts.forEach(p => { p.hidden = true; });
+      const first = parts[0];
+      fields.push({ name: `__combo:${c.id}`, label: c.label, type: "text", options: [], combo: c.parts, fill: c.fill, date: !!c.date,
+        others: !!c.others, group: c.group, noGuess: true, page: first.page, x: first.x, y: first.y, w: 0, h: first.h });
+    }
+    (profile.signatures || []).forEach((sg, k) => fields.push({ name: `__sig${k}`, label: sg.label, type: "signature", synthetic: true, options: [], page: sg.page, x: sg.x, y: sg.y, w: sg.w, h: sg.h, others: false, group: sg.group }));
   }
-  fields.sort((a, b) => a.page - b.page || (b.y - a.y) || (a.x - b.x));
-  return { fields, pageCount: pages.length, profile: profile ? { id: profile.id, title: profile.title } : null };
+  const shown = fields.filter(f => !f.hidden);
+  // Reading order: page, then line (boxes within 4pt count as one line), then left to right.
+  shown.sort((a, b) => a.page - b.page || (Math.abs(b.y - a.y) > 4 ? b.y - a.y : a.x - b.x));
+  return { fields: shown, pageCount: pages.length, profile: profile ? { id: profile.id, title: profileName(profile), groups: profile.groups || {} } : null };
 }
 
 /* ---------- pre-filling from My details ---------- */
@@ -227,8 +210,10 @@ async function buildFilledPdf(template, values, fields) {
   const pages = doc.getPages();
   const tooLong = [];
   for (const fd of fields) {
-    let f; try { f = form.getField(fd.name); } catch { continue; }
+    if (!groupOn(values, fd)) continue;              // optional section not ticked: leave it blank
     const v = values[fd.name];
+    if (fd.combo) { fillCombo(form, fd, v, tooLong); continue; }
+    let f; try { f = form.getField(fd.name); } catch { continue; }
     try {
       if (fd.type === "signature") continue;
       if (f instanceof PDFTextField) {
@@ -236,6 +221,7 @@ async function buildFilledPdf(template, values, fields) {
           const fit = fitText(pdfSafe(v), f.getMaxLength());
           if (!fit.ok) tooLong.push(`${fd.label}: "${v}" (max ${f.getMaxLength()} characters)`);
           f.setText(fit.text);
+          tameAutoSize(f);
         }
       }
       else if (f instanceof PDFCheckBox) { v ? f.check() : f.uncheck(); }
@@ -247,7 +233,7 @@ async function buildFilledPdf(template, values, fields) {
   const sig = state.profile.signatureImage;
   if (sig) {
     const png = await doc.embedPng(sig);
-    for (const fd of fields.filter(f => f.type === "signature" && !f.others && fd_isOn(values, f))) {
+    for (const fd of fields.filter(f => f.type === "signature" && !f.others && fd_isOn(values, f) && groupOn(values, f))) {
       const page = pages[fd.page] || pages[0];
       const scale = Math.min((fd.w - 4) / png.width, (fd.h - 2) / png.height);
       const w = png.width * scale, h = png.height * scale;
@@ -268,19 +254,69 @@ async function buildFilledPdf(template, values, fields) {
   return new File([out], `${base}_${who}_${isoLocal(new Date())}.pdf`, { type: "application/pdf" });
 }
 function fd_isOn(values, fd) { return values[`__sign:${fd.name}`] !== false; }
+// Boxes set to "auto" text size fill their whole height, which looks shouted on tall boxes.
+// Give them a normal size instead (fixed-size boxes are left as the form has them).
+function tameAutoSize(f) {
+  try {
+    const da = f.acroField.getDefaultAppearance() || "";
+    const m = /([\d.]+)\s+Tf/.exec(da);
+    if (m && Number(m[1]) > 0) return;
+    const h = f.acroField.getWidgets()[0]?.getRectangle().height || 20;
+    f.setFontSize(Math.max(7, Math.min(11, Math.round(h * 0.55))));
+  } catch { /* leave as is */ }
+}
+
+// Optional sections (e.g. a postponement page) are only written when ticked.
+function groupOn(values, fd) { return !fd.group || values[`__group:${fd.group}`] === true; }
+
+// Spread one value over several boxes: a date becomes ddmmyyyy, then each box takes
+// as many characters as it holds (1 if it has no limit); the last box takes the rest.
+function fillCombo(form, fd, v, tooLong) {
+  let text = pdfSafe(v ?? "").trim();
+  if (!text) return;
+  const d = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(text);
+  if (fd.date && d) text = d[1].padStart(2, "0") + d[2].padStart(2, "0") + (d[3].length === 2 ? "20" + d[3] : d[3]);
+  else text = text.replace(/\s+/g, "");
+  const boxes = fd.combo.map(n => { try { return form.getTextField(n); } catch { return null; } }).filter(Boolean);
+  let rest = text;
+  boxes.forEach((b, i) => {
+    const max = b.getMaxLength() || 0;
+    const take = i === boxes.length - 1 ? rest.length : (max || 1);
+    let chunk = rest.slice(0, take);
+    rest = rest.slice(take);
+    if (max && chunk.length > max) { tooLong.push(`${fd.label}: "${v}" doesn't fit the boxes`); chunk = chunk.slice(0, max); }
+    try {
+      // A box holding several squares (e.g. 7 of a date's 8) spreads its characters one per square.
+      if (max > 1 && !b.isCombed()) b.enableCombing();
+      b.setText(chunk);
+      tameAutoSize(b);
+    } catch (err) { console.warn("Skipped box", b.getName(), err); }
+  });
+}
 
 /* ---------- screens ---------- */
 
 async function renderForms() {
-  $("officialForms").innerHTML = OFFICIAL_FORMS.map(f => `
-    <li><a href="${esc(f.url)}" target="_blank" rel="noopener"><strong>${esc(f.code)}</strong> ${esc(f.name)}</a></li>`).join("");
   let templates = [];
   try { templates = await idbAll(); } catch (err) { console.error(err); }
   templates.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+  // An uploaded copy of a built-in form (e.g. a newer version) is used instead of the bundled one.
+  const own = new Map(templates.filter(t => t.profile).map(t => [t.profile, t]));
+  $("builtinForms").innerHTML = FORM_PROFILES.filter(p => p.file).map(p => {
+    const mine = own.get(p.id);
+    return `<li class="bf">
+      <button type="button" class="bf__main" data-form-fill="${esc(mine ? mine.id : "builtin:" + p.id)}">
+        <strong>${esc(p.code)}</strong> <span>${esc(p.title)}</span>${mine ? ` <span class="opt">your copy</span>` : ""}
+      </button>
+      <a class="bf__link" href="${esc(p.url)}" target="_blank" rel="noopener" title="Check the latest version on the HSE site" aria-label="Check the latest ${esc(p.title)} form on the HSE site">HSE ↗</a>
+    </li>`;
+  }).join("");
+  $("officialForms").innerHTML = OTHER_HSE_FORMS.map(f => `
+    <li><a href="${esc(f.url)}" target="_blank" rel="noopener"><strong>${esc(f.code)}</strong> ${esc(f.title)}${f.note ? ` <span class="opt">${esc(f.note)}</span>` : ""}</a></li>`).join("");
   $("formTemplates").innerHTML = templates.length ? templates.map(t => `
     <article class="card form-item">
       <div>
-        <div class="eyebrow">${t.fieldCount ? `${t.fieldCount} boxes to fill` : "Not fillable"}</div>
+        <div class="eyebrow">${t.fieldCount ? `${t.fieldCount} boxes to fill` : "Not fillable"}${t.profile ? " · replaces the built-in copy" : ""}</div>
         <h3>${esc(t.name)}</h3>
         <div class="muted">Added ${esc(new Date(t.addedAt).toLocaleDateString("en-IE"))} · ${t.pageCount || "?"} page${t.pageCount === 1 ? "" : "s"}</div>
       </div>
@@ -290,7 +326,7 @@ async function renderForms() {
       </div>
       ${t.fieldCount ? "" : `<p class="hint">This PDF has no fillable boxes, so the app can't fill it automatically yet. Send it in the chat and a layout can be added for it.</p>`}
     </article>`).join("")
-    : `<div class="card empty">No forms added yet. Download a form from the list above, then tap <strong>Add a form</strong>.</div>`;
+    : `<p class="hint">Only needed for a form that isn't built in, or a newer version of one that is.</p>`;
 
   const done = (state.forms || []).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   $("filledForms").innerHTML = done.length ? done.map(r => `
@@ -314,7 +350,7 @@ async function addFormFile(file) {
   try {
     const bytes = await file.arrayBuffer();
     const { fields, pageCount, profile } = await readFields(bytes);
-    const real = fields.filter(f => !f.synthetic);
+    const real = fields.filter(f => !f.synthetic && !f.combo);
     const rec = { id: newId(), name: profile ? profile.title : file.name.replace(/\.pdf$/i, ""), addedAt: new Date().toISOString(), bytes, fieldCount: real.length, pageCount, profile: profile?.id || null };
     await idbPut(rec);
     await renderForms();
@@ -327,11 +363,12 @@ async function addFormFile(file) {
 }
 
 async function openFormEditor(templateId, recordId = null) {
-  const t = await idbGet(templateId);
+  let t;
+  try { t = await getTemplate(templateId); } catch (err) { console.error(err); return toast("That form couldn't be loaded — check your connection and try again.", true); }
   if (!t) return toast("That form isn't on this device any more — add it again.", true);
-  const { fields } = await readFields(t.bytes);
+  const { fields, profile } = await readFields(t.bytes, t.profile || null);
   const rec = recordId ? (state.forms || []).find(r => r.id === recordId) : null;
-  fx.open = t; fx.fields = fields; fx.recordId = recordId; fx.file = null;
+  fx.open = t; fx.fields = fields; fx.recordId = recordId; fx.file = null; fx.groups = profile?.groups || {};
   fx.values = rec ? { ...rec.values } : {};
   fx.prefilled = new Set();
   if (!rec) {
@@ -364,8 +401,9 @@ function fieldInput(f) {
     </div>`;
   }
   if (f.type === "check") return `<label class="check check--small form-check"><input type="checkbox" data-ff="${esc(f.name)}" ${v ? "checked" : ""}> <span>${esc(f.label)}</span></label>`;
-  if (f.type === "choice") return `<div class="field"><label for="${id}">${esc(f.label)}</label><select id="${id}" data-ff="${esc(f.name)}">${opt("", "— Select —", !v)}${f.options.map(o => opt(o, o, v === o)).join("")}</select></div>`;
-  const isDate = f.date || (/date|commenc|start|finish|end|from|until|return/i.test(f.label) && !/name|reason|course|days/i.test(f.label));
+  if (f.type === "choice") return `<div class="field"><label for="${id}">${esc(f.label)}</label><select id="${id}" data-ff="${esc(f.name)}">${opt("", "— Select —", !v)}${f.options.map(o => opt(o, f.optionLabels?.[o] || o, v === o)).join("")}</select></div>`;
+  if (f.long) return `<div class="field field--wide"><label for="${id}">${esc(f.label)}${tag}</label><textarea id="${id}" data-ff="${esc(f.name)}" rows="6">${esc(v ?? "")}</textarea></div>`;
+  const isDate = f.noGuess ? !!f.date : f.date || (/date|commenc|start|finish|end|from|until|return/i.test(f.label) && !/name|reason|course|days/i.test(f.label));
   const lim = f.maxLen ? ` <span class="opt">${f.comb ? `${f.maxLen} boxes` : `max ${f.maxLen}`}</span>` : "";
   return `<div class="field"><label for="${id}">${esc(f.label)}${tag}${isDate ? "" : lim}</label>
     <div class="ff-row"><input type="text" id="${id}" data-ff="${esc(f.name)}" value="${esc(v ?? "")}" ${isDate ? `placeholder="dd/mm/yyyy"` : ""}>
@@ -374,8 +412,17 @@ function fieldInput(f) {
 
 function renderFormEditor() {
   const t = fx.open;
-  const mine = fx.fields.filter(f => !f.others);
+  const mine = fx.fields.filter(f => !f.others && !f.group);
   const theirs = fx.fields.filter(f => f.others);
+  // Optional sections: shown folded, and only written to the PDF when ticked.
+  const optional = Object.entries(fx.groups || {}).map(([g, title]) => {
+    const list = fx.fields.filter(f => !f.others && f.group === g);
+    if (!list.length) return "";
+    const on = fx.values[`__group:${g}`] === true;
+    return `<details class="form-others form-opt" ${on ? "open" : ""}><summary>${esc(title)}</summary>
+      <label class="check check--small"><input type="checkbox" data-ff-group="${esc(g)}" ${on ? "checked" : ""}> <span>Include this section on the form</span></label>
+      <div class="form-fields">${list.map(fieldInput).join("")}</div></details>`;
+  }).join("");
   $("formEditor").innerHTML = `
     <div class="form-ed__head">
       <div><div class="eyebrow">Fill in</div><h2>${esc(t.name)}</h2>
@@ -383,6 +430,7 @@ function renderFormEditor() {
       <button type="button" class="btn btn--ghost btn--small" data-form-close>Close</button>
     </div>
     <div class="form-fields">${mine.map(fieldInput).join("")}</div>
+    ${optional}
     ${theirs.length ? `<details class="form-others"><summary>Manager / HR sections (${theirs.length}) — usually left blank</summary><div class="form-fields">${theirs.map(fieldInput).join("")}</div></details>` : ""}
     <div class="actions">
       <button type="button" class="btn btn--primary" data-form-make>Save &amp; make PDF</button>
@@ -402,6 +450,7 @@ function readEditorValues() {
     fx.values[el.dataset.ff] = el.type === "checkbox" ? el.checked : el.value;
   });
   document.querySelectorAll("#formEditor [data-ff-sign]").forEach(el => { fx.values[`__sign:${el.dataset.ffSign}`] = el.checked; });
+  document.querySelectorAll("#formEditor [data-ff-group]").forEach(el => { fx.values[`__group:${el.dataset.ffGroup}`] = el.checked; });
 }
 
 async function saveAndMake() {

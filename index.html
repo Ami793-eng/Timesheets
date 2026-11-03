@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.02-8">
+  <link rel="stylesheet" href="styles.css?v=2026.11.02-9">
 </head>
 <body>
   <header class="app-header">
@@ -162,19 +162,21 @@
     <section id="tab-forms" class="panel" role="tabpanel" hidden>
       <div class="card">
         <h2>Forms</h2>
-        <p class="muted">Fill in official HSE forms (e.g. HR 108 leave forms) with your details and signature, then email or download the PDF.</p>
-        <div class="actions">
-          <label class="btn btn--primary" for="formUpload">＋ Add a form (PDF)</label>
-          <input type="file" id="formUpload" accept="application/pdf,.pdf" class="visually-hidden">
-        </div>
+        <p class="muted">Fill in official HSE HR forms with your details and signature, then email or download the PDF. Tap a form to start.</p>
+        <ul class="bf-list" id="builtinForms"></ul>
+        <p class="hint">These are the HSE's own forms, built into the app. Tap <strong>HSE ↗</strong> to check the HSE site for a newer version. If there is one, download it and add it below, and the app will use your copy instead.</p>
         <details class="official">
-          <summary>Get the official HSE forms</summary>
+          <summary>Other HSE forms (not built in yet)</summary>
           <ul class="official__list" id="officialForms"></ul>
-          <p class="hint">Open a form, download the PDF to your phone, then tap <strong>Add a form</strong>. Always check you have the latest version on the HSE site.</p>
+          <p class="hint">Download a fillable PDF form and tap <strong>Add a form</strong> to fill it in here.</p>
         </details>
       </div>
       <div id="formEditor" class="card form-ed" hidden></div>
-      <h3 class="sub-h">My forms</h3>
+      <h3 class="sub-h">Forms I've added</h3>
+      <div class="actions">
+        <label class="btn" for="formUpload">＋ Add a form (PDF)</label>
+        <input type="file" id="formUpload" accept="application/pdf,.pdf" class="visually-hidden">
+      </div>
       <div id="formTemplates"></div>
       <h3 class="sub-h">Filled forms</h3>
       <div id="filledForms"></div>
@@ -348,7 +350,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.02-8</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.02-9</span></p>
       </div>
     </section>
   </main>
@@ -406,7 +408,8 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="forms.js?v=2026.11.02-8" defer></script>
-  <script src="app.js?v=2026.11.02-8"></script>
+  <script src="form-profiles.js?v=2026.11.02-9" defer></script>
+  <script src="forms.js?v=2026.11.02-9" defer></script>
+  <script src="app.js?v=2026.11.02-9"></script>
 </body>
 </html>

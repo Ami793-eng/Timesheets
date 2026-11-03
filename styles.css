@@ -566,5 +566,16 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .ff-row input[type="text"] { flex: 1; min-width: 0; }
 .ff-date { width: 46px !important; flex: none; padding: 0 !important; color: transparent; }
 .ff-date::-webkit-datetime-edit { display: none; }
+.bf-list { list-style: none; padding: 0; margin: 12px 0 8px; display: grid; gap: 6px; }
+@media (min-width: 620px) { .bf-list { grid-template-columns: 1fr 1fr; } }
+.bf { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+.bf__main { flex: 1; min-width: 0; text-align: left; padding: 10px 12px; border: 0; background: none; color: var(--text); font: inherit; font-size: .95rem; cursor: pointer; }
+.bf__main strong { color: var(--primary); margin-right: 4px; white-space: nowrap; }
+.bf__main:hover, .bf__main:focus-visible { background: var(--primary-soft); }
+.bf__link { display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--border); font-size: .78rem; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.form-opt { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.form-opt summary { color: var(--primary); }
+.field--wide { grid-column: 1 / -1; }
+.field--wide textarea { width: 100%; font: inherit; padding: .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .form-out { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .tab { font-size: .95rem; padding-left: .2rem; padding-right: .2rem; }
