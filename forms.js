@@ -362,7 +362,28 @@ async function addFormFile(file) {
   }
 }
 
-async function openFormEditor(templateId, recordId = null) {
+// From a leave day on the timesheet: open its HSE form with the dates and days filled in,
+// or the form already made for that leave.
+async function openLeaveForm(i) {
+  const sheet = currentSheet();
+  if (!sheet) return;
+  const run = leaveRun(sheet, i);
+  const p = leaveFormProfile(run.type);
+  if (!p) return;
+  const done = linkedLeaveForm(sheet, run);
+  showTab("forms");
+  if (done) return openFormEditor(done.templateId, done.id);
+  let templateId = "builtin:" + p.id;
+  try { const own = (await idbAll()).find(t => t.profile === p.id); if (own) templateId = own.id; } catch { /* use the built-in copy */ }
+  const values = {};
+  for (const [box, what] of Object.entries(p.leaveFill || {})) {
+    values[box] = what === "from" ? displayDate(run.from) : what === "to" ? displayDate(run.to)
+      : what === "days" ? String(run.days) : `${run.days} day${run.days === 1 ? "" : "s"}`;
+  }
+  openFormEditor(templateId, null, { values, link: { sheetId: sheet.id, type: run.type, from: run.from, to: run.to } });
+}
+
+async function openFormEditor(templateId, recordId = null, extra = null) {
   let t;
   try { t = await getTemplate(templateId); } catch (err) { console.error(err); return toast("That form couldn't be loaded — check your connection and try again.", true); }
   if (!t) return toast("That form isn't on this device any more — add it again.", true);
@@ -381,6 +402,9 @@ async function openFormEditor(templateId, recordId = null) {
       if (v) { fx.values[f.name] = v; fx.prefilled.add(f.name); used.add(k); }
     }
   }
+  fx.link = rec?.link || extra?.link || null;
+  fx.fromSheet = new Set();
+  for (const [k, v] of Object.entries(extra?.values || {})) { fx.values[k] = v; fx.fromSheet.add(k); }
   renderFormEditor();
   $("formEditor").hidden = false;
   $("formEditor").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -389,7 +413,8 @@ async function openFormEditor(templateId, recordId = null) {
 function fieldInput(f) {
   const v = fx.values[f.name];
   const id = `ff_${btoa(unescape(encodeURIComponent(f.name))).replace(/[^a-z0-9]/gi, "")}`;
-  const tag = fx.prefilled?.has(f.name) ? ` <span class="opt">from My details</span>` : "";
+  const tag = fx.fromSheet?.has(f.name) ? ` <span class="opt">from your timesheet</span>`
+    : fx.prefilled?.has(f.name) ? ` <span class="opt">from My details</span>` : "";
   if (f.type === "signature") {
     const mine = !f.others;
     return `<div class="field form-sig">
@@ -460,6 +485,7 @@ async function saveAndMake() {
   let rec = state.forms.find(r => r.id === fx.recordId);
   if (!rec) { rec = { id: newId(), templateId: fx.open.id, templateName: fx.open.name, createdAt: now, sends: [] }; state.forms.push(rec); fx.recordId = rec.id; }
   rec.values = { ...fx.values };
+  if (fx.link) rec.link = fx.link;
   rec.updatedAt = now;
   saveState();
   try {
@@ -499,6 +525,8 @@ function shareForm() {
 function initForms() {
   $("formUpload").addEventListener("change", e => { addFormFile(e.target.files[0]); e.target.value = ""; });
   document.addEventListener("click", async e => {
+    const lf = e.target.closest("[data-leave-form]");
+    if (lf) return openLeaveForm(Number(lf.dataset.leaveForm));
     const t = e.target.closest("[data-form-fill],[data-form-del],[data-form-open],[data-form-forget],[data-form-close],[data-form-make],[data-form-share],[data-form-download]");
     if (!t) return;
     const d = t.dataset;

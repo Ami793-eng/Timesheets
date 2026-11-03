@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.02-9";
+const APP_VERSION = "2026.11.03-1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1098,6 +1098,49 @@ function isPlainRest(d) {
   return d.roster === "rest" && resolvedActual(d).kind === "none" && !d.ot && !d.subs;
 }
 
+/* ---------- leave days → HSE leave forms (setups in form-profiles.js) ---------- */
+
+function dayLeaveType(d) {
+  if (d.actual === "leave") return d.actualLeave || "";
+  if (d.actual === "partleave") return d.partLeave || "";
+  if (d.roster === "leave") return d.rosterLeave || "";
+  return "";
+}
+function leaveFormProfile(type) {
+  return (type && typeof FORM_PROFILES !== "undefined" && FORM_PROFILES.find(p => p.leaveType === type && p.file)) || null;
+}
+// The stretch of this week taken as the same leave around day i. Rest days in between don't break it.
+function leaveRun(sheet, i) {
+  const type = dayLeaveType(sheet.days[i]);
+  let a = i, b = i;
+  for (let k = i - 1; k >= 0; k--) { const d = sheet.days[k]; if (dayLeaveType(d) === type) a = k; else if (!isPlainRest(d)) break; }
+  for (let k = i + 1; k < 7; k++) { const d = sheet.days[k]; if (dayLeaveType(d) === type) b = k; else if (!isPlainRest(d)) break; }
+  const days = sheet.days.slice(a, b + 1).filter(d => dayLeaveType(d) === type).length;
+  return { type, from: sheet.days[a].date, to: sheet.days[b].date, days };
+}
+// A filled form already made for this leave (same timesheet, same leave, overlapping dates).
+function linkedLeaveForm(sheet, run) {
+  return (state.forms || []).find(r => r.link && r.link.sheetId === sheet.id && r.link.type === run.type && r.link.from <= run.to && r.link.to >= run.from) || null;
+}
+function leaveFormRow(d, i) {
+  const sheet = currentSheet();
+  const p = sheet && leaveFormProfile(dayLeaveType(d));
+  if (!p) return "";
+  const run = leaveRun(sheet, i);
+  const rec = linkedLeaveForm(sheet, run);
+  const sent = rec?.sends?.length ? new Date(rec.sends.at(-1)) : null;
+  const span = run.from === run.to ? shortDate(run.from) : `${shortDate(run.from)} – ${shortDate(run.to)}`;
+  return `
+    <div class="leave-form">
+      <div class="leave-form__text">
+        <strong>${esc(p.code)} ${esc(p.title)} form</strong>
+        <span class="muted">${span} · ${run.days} day${run.days === 1 ? "" : "s"}</span>
+        ${rec ? `<span class="chip2 chip-leave">${sent ? `Sent ${esc(sent.toLocaleDateString("en-IE", { day: "2-digit", month: "2-digit" }))}` : "Filled in"}</span>` : ""}
+      </div>
+      <button type="button" class="btn btn--small" data-leave-form="${i}">${rec ? "Open form" : "Fill in the form"}</button>
+    </div>`;
+}
+
 function renderDays(sheet) {
   $("dayList").innerHTML = sheet.days.map((d, i) => dayCard(d, i)).join("");
 }
@@ -1384,6 +1427,8 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
       ${isTime(d.topFrom) && isTime(d.topTo) && shiftMins(d.topFrom, d.topTo) !== tu ? `<p class="hint warn-text">That's ${fmtDur(shiftMins(d.topFrom, d.topTo))} — the top-up needed is ${fmtDur(tu)}.</p>` : ""}` : ""}
     </div>`;
     })() : ""}
+
+    ${leaveFormRow(d, i)}
 
     ${isSwap ? `
     <div class="field">
