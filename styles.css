@@ -592,6 +592,18 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .lv-note { margin: 0; font-size: .9rem; color: var(--muted); }
 .lv-shifts { display: grid; gap: 4px; margin: 4px 0 12px; font-size: .9rem; }
 .lv-shifts > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--leave-soft); }
+.lv-reminder { border-left: 4px solid var(--danger); background: var(--warn-soft); }
+.lv-reminder p { margin: 6px 0 10px; }
+.lv-blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 480px) { .lv-blocks { grid-template-columns: 1fr; } }
+.lv-block { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: .9rem; }
+.lv-block__top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.lv-block__bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.lv-block__bar span { display: block; height: 100%; background: var(--primary); }
+.lv-block--done .lv-block__bar span { background: var(--ok); }
+.lv-block__apply { font-size: .8rem; }
+.tab--dot { position: relative; }
+.tab--dot::after { content: ""; position: absolute; top: 8px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #ff6b5b; }
 .lv-settings summary { cursor: pointer; list-style: none; }
 .lv-settings summary h3 { display: inline; }
 .lv-settings[open] summary { margin-bottom: 12px; }

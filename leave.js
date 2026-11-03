@@ -6,6 +6,13 @@
  *   status: "requested" | "approved" | "declined" | "cancelled", createdAt, sentAt, decidedAt }.
  * Sending a request saves it as a leave period (see setFormLeavePeriods in app.js), so every
  * rostered shift in its dates is marked as that leave on draft and future timesheets.
+ *
+ * Entitlement and structured leave follow NAS policy NASPO36 (Structured Leave & Entitlements):
+ * leave year 1 April – 31 March; 179.4h annual leave (23 days; 187.2h for some pre-2007 staff)
+ * plus 70.2h for the 9 bank holidays; blocks of 78h in summer and 39h in autumn and spring,
+ * each applied for in its own window. People don't keep to the exact figures (e.g. a 36h week,
+ * or two separate weeks in summer), so all annual leave in a season counts towards its block,
+ * and a block counts as done at 90% of its hours (the policy allows minor local variation).
  */
 "use strict";
 
@@ -13,8 +20,16 @@ const REQUEST_TYPES = ["Annual Leave", "Parental Leave", "Force Majeure", "Study
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const lx = { editing: null };   // the request being made in the editor
 
+// NASPO36 section 9.1 / 10.1. Months are 1-12; "next" means in the following calendar year of the leave year.
+const STRUCTURED_BLOCKS = [
+  { id: "summer", name: "Summer", hours: 78, from: [4, 1], to: [9, 30], applyFrom: [1, 1], applyTo: [2, 28] },
+  { id: "autumn", name: "Autumn", hours: 39, from: [10, 1], to: [12, 31], applyFrom: [7, 1], applyTo: [8, 31] },
+  { id: "spring", name: "Spring", hours: 39, from: [1, 1], to: [3, 31], next: true, applyFrom: [10, 1], applyTo: [11, 30] }
+];
+const BLOCK_DONE_SHARE = 0.9;
+
 function leaveSettings() {
-  state.profile.leave = { to: "", ccMe: true, entitlementH: "", carriedH: "", yearStart: 1, ...(state.profile.leave || {}) };
+  state.profile.leave = { to: "", ccMe: true, alH: "179.4", bhH: "70.2", carriedH: "", yearStart: 4, ...(state.profile.leave || {}) };
   return state.profile.leave;
 }
 const fmtHours = mins => `${Math.round(mins / 6) / 10}h`.replace(".0h", "h");
@@ -56,32 +71,71 @@ function leaveYear(onIso = isoLocal(new Date())) {
   return { start, end, label: m === 1 ? String(y) : `${y}/${String(y + 1).slice(2)}` };
 }
 
-// Annual leave hours in a leave year: booked through the app (taken / still to come), plus any
-// annual leave on published timesheets that wasn't booked here.
-function leaveTotals(year = leaveYear()) {
-  const today = isoLocal(new Date());
-  let taken = 0, upcoming = 0, requested = 0, other = 0;
+// Every day of annual leave the app knows about: { date, mins, requested, other }.
+// From requests made here (their hours spread over their shifts), plus annual leave on published
+// timesheets that wasn't booked here.
+function annualLeaveDays() {
+  const out = [];
   for (const r of state.leaveRequests || []) {
     if (r.type !== "Annual Leave" || !["requested", "approved"].includes(r.status)) continue;
-    const scale = r.shifts.reduce((a, s) => a + s.mins, 0) ? (r.hours * 60) / r.shifts.reduce((a, s) => a + s.mins, 0) : 0;
-    for (const s of r.shifts) {
-      if (s.date < year.start || s.date > year.end) continue;
-      const m = s.mins * scale;
-      if (s.date < today) taken += m; else upcoming += m;
-      if (r.status === "requested") requested += m;
-    }
-    if (!r.shifts.length && r.from >= year.start && r.from <= year.end) { const m = r.hours * 60; r.from < today ? taken += m : upcoming += m; if (r.status === "requested") requested += m; }
+    const total = r.shifts.reduce((a, s) => a + s.mins, 0);
+    if (!total) { out.push({ date: r.from, mins: r.hours * 60, requested: r.status === "requested" }); continue; }
+    for (const s of r.shifts) out.push({ date: s.date, mins: s.mins * (r.hours * 60) / total, requested: r.status === "requested" });
   }
   const counted = new Set();
   for (const s of state.sheets.filter(s => s.status === "published" && !state.sheets.some(o => o.revisionOf === s.id))) {
     for (const d of s.days) {
-      if (d.date < year.start || d.date > year.end || counted.has(d.date)) continue;
-      if (d.actual === "leave" && d.actualLeave === "Annual Leave" && !d.leaveSource) { other += shiftMins(d.rosterFrom, d.rosterTo); counted.add(d.date); }
+      if (counted.has(d.date) || !(d.actual === "leave" && d.actualLeave === "Annual Leave" && !d.leaveSource)) continue;
+      out.push({ date: d.date, mins: shiftMins(d.rosterFrom, d.rosterTo), other: true });
+      counted.add(d.date);
     }
   }
+  return out;
+}
+const alMinsBetween = (from, to) => annualLeaveDays().filter(e => e.date >= from && e.date <= to).reduce((a, e) => a + e.mins, 0);
+
+// Annual leave hours in a leave year: taken, still to come, waiting for approval, and what's left.
+function leaveTotals(year = leaveYear()) {
+  const today = isoLocal(new Date());
+  let taken = 0, upcoming = 0, requested = 0, other = 0;
+  for (const e of annualLeaveDays()) {
+    if (e.date < year.start || e.date > year.end) continue;
+    if (e.date < today) taken += e.mins; else upcoming += e.mins;
+    if (e.requested) requested += e.mins;
+    if (e.other) other += e.mins;
+  }
   const set = leaveSettings();
-  const entitlement = (Number(set.entitlementH) || 0) * 60 + (Number(set.carriedH) || 0) * 60;
-  return { taken: taken + other, upcoming, requested, other, entitlement, left: entitlement - taken - upcoming - other };
+  const entitlement = ((Number(set.alH) || 0) + (Number(set.bhH) || 0) + (Number(set.carriedH) || 0)) * 60;
+  return { taken, upcoming, requested, other, entitlement, left: entitlement - taken - upcoming };
+}
+
+/* ---------- structured leave blocks (NASPO36 section 9) ---------- */
+
+// The three blocks of a leave year, with their dates, application window, hours booked and status.
+function structuredBlocks(year = leaveYear()) {
+  const y = Number(year.start.slice(0, 4));
+  const today = isoLocal(new Date());
+  const at = (yy, [m, d]) => isoLocal(new Date(yy, m - 1, d));
+  return STRUCTURED_BLOCKS.map(b => {
+    const from = at(b.next ? y + 1 : y, b.from), to = at(b.next ? y + 1 : y, b.to);
+    // Every application window falls in the calendar year the leave year starts (summer: Jan–Feb, before 1 April).
+    const applyFrom = at(y, b.applyFrom), applyTo = at(y, b.applyTo);
+    const mins = alMinsBetween(from, to);
+    const done = mins >= b.hours * 60 * BLOCK_DONE_SHARE;
+    const status = done ? "done" : today > to ? (mins ? "missed" : "norecord") : today >= applyFrom && today <= applyTo ? "apply" : today < applyFrom ? "soon" : "late";
+    return { ...b, from, to, applyFrom, applyTo, mins, done, state: status, yearLabel: year.label };
+  });
+}
+// The block to nudge about right now (application window open and not booked yet), if any.
+// Summer is applied for in January–February, before its leave year starts, so look at next year too.
+function blockReminder() {
+  const now = leaveYear();
+  const next = leaveYear(isoLocal(new Date(Number(now.end.slice(0, 4)), Number(now.end.slice(5, 7)), 1)));
+  return [...structuredBlocks(now), ...structuredBlocks(next)].find(b => b.state === "apply") || null;
+}
+function updateLeaveDot() {
+  const tab = document.querySelector('.tab[data-tab="leave"]');
+  if (tab) tab.classList.toggle("tab--dot", !!blockReminder());
 }
 
 /* ---------- screens ---------- */
@@ -106,7 +160,29 @@ function renderLeave() {
     </div>
     ${t.requested ? `<p class="hint">${fmtHours(t.requested)} still waiting for approval.</p>` : ""}
     ${t.other ? `<p class="hint">Includes ${fmtHours(t.other)} of annual leave on published timesheets that wasn't booked here.</p>` : ""}
-    ${t.entitlement ? "" : `<p class="hint">Add your annual leave entitlement in <strong>Leave settings</strong> below to see how much is left.</p>`}`;
+    ${t.entitlement ? "" : `<p class="hint">Add your annual leave entitlement in <strong>Leave settings</strong> below to see how much is left.</p>`}
+    ${Number(set.carriedH) > 39 ? `<p class="hint warn-text">Carry-over is normally up to one week (39h), to be taken within 6 months of the new leave year (NASPO36 11.1–11.2).</p>` : ""}`;
+
+  const rem = blockReminder();
+  $("leaveReminder").hidden = !rem;
+  $("leaveReminder").innerHTML = rem ? `
+    <strong>Book your ${esc(rem.name.toLowerCase())} leave</strong>
+    <p>Applications for ${esc(rem.name)} ${displayDate(rem.from)} – ${displayDate(rem.to)} are open until <strong>${displayDate(rem.applyTo)}</strong>. The block is ${rem.hours}h${rem.mins ? ` — you have ${fmtHours(rem.mins)} booked so far` : ""}.</p>
+    <button type="button" class="btn btn--small btn--primary" data-lv-block="${esc(rem.id)}" data-lv-block-from="${esc(rem.from)}">Request ${esc(rem.name.toLowerCase())} leave</button>` : "";
+
+  const blocks = structuredBlocks(y);
+  const label = { done: ["Done", "chip-ok"], apply: ["Apply now", "chip-warn"], soon: ["Not yet", "chip-plain"], late: ["Not booked", "chip-warn"], missed: ["Short", "chip-bad"], norecord: ["No record", "chip-plain"] };
+  $("leaveBlocks").innerHTML = `
+    <div class="lv-blocks">${blocks.map(b => `
+      <div class="lv-block lv-block--${b.state}">
+        <div class="lv-block__top"><strong>${esc(b.name)}</strong><span class="chip2 ${label[b.state][1]}">${label[b.state][0]}</span></div>
+        <div class="muted">${shortDate(b.from)} – ${shortDate(b.to)}</div>
+        <div class="lv-block__bar"><span style="width:${Math.min(100, Math.round(b.mins / (b.hours * 60) * 100))}%"></span></div>
+        <div><strong>${fmtHours(b.mins)}</strong> <span class="muted">of ${b.hours}h</span></div>
+        <div class="lv-block__apply muted">${["done", "missed", "norecord"].includes(b.state) ? "" : b.state === "late" ? `Applications closed ${shortDate(b.applyTo)} — ask your line manager` : `Apply ${shortDate(b.applyFrom)} – ${shortDate(b.applyTo)}`}</div>
+      </div>`).join("")}
+    </div>
+    <p class="hint">NASPO36: a minimum of 156h in three blocks. All annual leave in a season counts — one block or separate weeks — and a block counts as done at about 90% of its hours (e.g. a 36h week for 39h).</p>`;
 
   const list = (state.leaveRequests || []).slice().sort((a, b) => b.from.localeCompare(a.from));
   const today = isoLocal(new Date());
@@ -134,16 +210,20 @@ function renderLeave() {
     </article>`;
   }).join("") : `<p class="hint">Leave you request here is listed with its status.</p>`;
 
+  updateLeaveDot();
   $("lvTo").value = set.to || "";
   $("lvCcMe").checked = set.ccMe !== false;
-  $("lvEnt").value = set.entitlementH || "";
+  $("lvAl").value = set.alH ?? "";
+  $("lvBh").value = set.bhH ?? "";
   $("lvCarried").value = set.carriedH || "";
   $("lvYearStart").innerHTML = MONTHS.map((m, i) => opt(String(i + 1), m, Number(set.yearStart) === i + 1)).join("");
 }
 
-function openLeaveEditor() {
+function openLeaveEditor(startIso = "") {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-  lx.editing = { type: "Annual Leave", from: isoLocal(tomorrow), to: isoLocal(tomorrow), note: "", hoursOverride: "" };
+  const from = startIso && startIso > isoLocal(tomorrow) ? startIso : isoLocal(tomorrow);
+  const end = parseIso(from); if (startIso) end.setDate(end.getDate() + 6);     // a block: suggest a week
+  lx.editing = { type: "Annual Leave", from, to: isoLocal(end), note: "", hoursOverride: "" };
   renderLeaveEditor();
   $("leaveEditor").hidden = false;
   $("leaveEditor").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -181,6 +261,8 @@ function renderLeaveEditor() {
       <p class="hint">${r.unknown ? "Set your roster in My details to work this out, or enter the hours." : "Worked out from your roster — change it if needed."}</p>
     </div>
     <div class="field"><label for="lvNote">Note <span class="opt">optional</span></label><textarea id="lvNote" data-lv-f="note" rows="2" placeholder="e.g. Family holiday">${esc(e.note)}</textarea></div>
+    ${noticeHint(r)}
+    ${blockHint(r)}
     ${overlap ? `<p class="hint warn-text">You already have ${esc(overlap.type)} booked ${displayDate(overlap.from)} – ${displayDate(overlap.to)}.</p>` : ""}
     <details class="email-preview-wrap"><summary>Email preview</summary><div class="email-preview">${emailPreview(r)}</div></details>
     ${set.to ? "" : `<p class="hint warn-text">Add the workforce planning email in <strong>Leave settings</strong> first.</p>`}
@@ -188,6 +270,22 @@ function renderLeaveEditor() {
       <button type="button" class="btn btn--primary" data-lv-send ${set.to && state.profile.name ? "" : "disabled"}>Email request</button>
     </div>
     <p class="hint">Opens your email app with the request filled in. Once you send it, the leave goes on your timesheets for those weeks.</p>`;
+}
+
+// NASPO36 10.2: single days two weeks ahead, 48 hours at the latest.
+function noticeHint(r) {
+  const days = Math.round((parseIso(r.from) - parseIso(isoLocal(new Date()))) / 864e5);
+  if (days < 2) return `<p class="hint warn-text">Leave should be booked at least 48 hours ahead (NASPO36 10.2).</p>`;
+  if (days < 14 && r.type === "Annual Leave") return `<p class="hint">Single days should normally be booked two weeks ahead; 48 hours is the minimum.</p>`;
+  return "";
+}
+// Which structured block this annual leave counts towards, and where that leaves it.
+function blockHint(r) {
+  if (r.type !== "Annual Leave" || !r.shifts.length) return "";
+  const b = structuredBlocks(leaveYear(r.from)).find(x => r.from >= x.from && r.from <= x.to);
+  if (!b) return "";
+  const add = r.hours * 60, after = b.mins + add;
+  return `<p class="hint">Counts towards your <strong>${esc(b.name)} ${esc(b.yearLabel)}</strong> block: ${fmtHours(after)} of ${b.hours}h with this request${after >= b.hours * 60 * BLOCK_DONE_SHARE && !b.done ? " ✓" : ""}.</p>`;
 }
 
 /* ---------- the email ---------- */
@@ -284,7 +382,8 @@ function saveLeaveSettings() {
   const set = leaveSettings();
   set.to = $("lvTo").value.trim();
   set.ccMe = $("lvCcMe").checked;
-  set.entitlementH = $("lvEnt").value.trim();
+  set.alH = $("lvAl").value.trim();
+  set.bhH = $("lvBh").value.trim();
   set.carriedH = $("lvCarried").value.trim();
   set.yearStart = Number($("lvYearStart").value) || 1;
   saveState();
@@ -293,8 +392,9 @@ function saveLeaveSettings() {
 }
 
 function initLeave() {
-  $("leaveNew").addEventListener("click", openLeaveEditor);
-  ["lvTo", "lvCcMe", "lvEnt", "lvCarried", "lvYearStart"].forEach(id => $(id).addEventListener("change", saveLeaveSettings));
+  $("leaveNew").addEventListener("click", () => openLeaveEditor());
+  updateLeaveDot();
+  ["lvTo", "lvCcMe", "lvAl", "lvBh", "lvCarried", "lvYearStart"].forEach(id => $(id).addEventListener("change", saveLeaveSettings));
   // Note and hours just update the request (re-drawing on blur would swallow a tap on "Email request").
   $("leaveEditor").addEventListener("input", e => {
     const f = e.target.dataset.lvF;
@@ -309,10 +409,11 @@ function initLeave() {
     renderLeaveEditor();
   });
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-lv-close],[data-lv-send],[data-lv-status],[data-lv-ics],[data-lv-cancel],[data-lv-delete]");
+    const t = e.target.closest("[data-lv-close],[data-lv-send],[data-lv-status],[data-lv-ics],[data-lv-cancel],[data-lv-delete],[data-lv-block]");
     if (!t) return;
     const d = t.dataset;
-    if (d.lvClose !== undefined) { lx.editing = null; $("leaveEditor").hidden = true; }
+    if (d.lvBlock) openLeaveEditor(d.lvBlockFrom);
+    else if (d.lvClose !== undefined) { lx.editing = null; $("leaveEditor").hidden = true; }
     else if (d.lvSend !== undefined) sendRequest();
     else if (d.lvStatus) setRequestStatus(d.lv, d.lvStatus);
     else if (d.lvIcs) { const r = state.leaveRequests.find(x => x.id === d.lvIcs); if (r) downloadFile(calendarFile(r)); }
