@@ -329,18 +329,22 @@ async function renderForms() {
     : `<p class="hint">Only needed for a form that isn't built in, or a newer version of one that is.</p>`;
 
   const done = (state.forms || []).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  $("filledForms").innerHTML = done.length ? done.map(r => `
+  $("filledForms").innerHTML = done.length ? done.map(r => {
+    const periods = (state.leavePeriods || []).filter(p => p.formId === r.id);
+    return `
     <article class="card form-item">
       <div>
         <div class="eyebrow">Filled form</div>
         <h3>${esc(r.templateName)}</h3>
+        ${periods.length ? `<div class="leave-note">On your timesheets: ${describePeriods(periods)} <button type="button" class="link-btn" data-form-unleave="${esc(r.id)}">Remove</button></div>` : ""}
         <div class="muted">${esc(new Date(r.updatedAt).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}${r.sends?.length ? ` · sent ${esc(new Date(r.sends.at(-1)).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}` : ""}</div>
       </div>
       <div class="form-item__actions">
         <button class="btn btn--small" data-form-open="${esc(r.id)}">Open</button>
         <button class="btn btn--danger-ghost btn--small" data-form-forget="${esc(r.id)}">Delete</button>
       </div>
-    </article>`).join("") : `<p class="hint">Forms you fill in are kept here so you can resend or change them.</p>`;
+    </article>`;
+  }).join("") : `<p class="hint">Forms you fill in are kept here so you can resend or change them.</p>`;
 }
 
 async function addFormFile(file) {
@@ -462,6 +466,7 @@ function renderFormEditor() {
     </div>
     <div id="formOut" hidden class="form-out">
       <p class="muted" id="formOutName"></p>
+      <p class="hint leave-note" id="formLeave" hidden></p>
       <div class="actions">
         <button type="button" class="btn btn--primary" data-form-share>Email with PDF attached</button>
         <button type="button" class="btn" data-form-download>Download PDF</button>
@@ -492,12 +497,55 @@ async function saveAndMake() {
     fx.file = await buildFilledPdf(fx.open, fx.values, fx.fields);
     $("formOut").hidden = false;
     $("formOutName").textContent = `${fx.file.name} is ready.`;
+    const lv = putLeaveOnTimesheets(rec);
+    $("formLeave").hidden = !lv;
+    $("formLeave").innerHTML = lv || "";
     renderForms();
     toast("Form saved and PDF made.");
   } catch (err) {
     console.error(err);
     alert("The filled PDF couldn't be made:\n\n" + err.message);
   }
+}
+
+/* ---------- leave dates in a filled form → timesheets ---------- */
+
+function isoFromDisplay(v) {
+  const t = String(v || "").trim();
+  const m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(t) || /^(\d{2})(\d{2})(\d{4})$/.exec(t);
+  if (!m) return "";
+  const y = m[3].length === 2 ? "20" + m[3] : m[3];
+  const d = new Date(Number(y), Number(m[2]) - 1, Number(m[1]));
+  return d.getDate() === Number(m[1]) && d.getMonth() === Number(m[2]) - 1 ? isoLocal(d) : "";
+}
+// The leave dates a filled form asks for (e.g. maternity leave start → end).
+function formLeaveRanges(values, profileId) {
+  const p = profileId && profileById(profileId);
+  if (!p?.leaveRanges) return null;
+  return p.leaveRanges(n => values[n], g => values[`__group:${g}`] === true)
+    .map(r => ({ type: r.type, from: isoFromDisplay(r.from), to: isoFromDisplay(r.to) }))
+    .filter(r => r.from && r.to && r.from <= r.to);
+}
+function describePeriods(periods) {
+  return periods.map(p => `${esc(p.type)} ${displayDate(p.from)} – ${displayDate(p.to)}`).join("; ");
+}
+// Save the form's leave dates as leave periods and mark them on the timesheets. Returns a message (HTML) or "".
+function putLeaveOnTimesheets(rec) {
+  const ranges = formLeaveRanges(rec.values, fx.open.profile);
+  if (!ranges) return "";
+  const had = (state.leavePeriods || []).some(p => p.formId === rec.id);
+  if (!ranges.length && !had) return "";
+  const r = setFormLeavePeriods(rec.id, ranges, fx.open.name);
+  if (!ranges.length) return "The leave dates were removed from your timesheets.";
+  return `<strong>Added to your timesheets:</strong> ${describePeriods(r.periods)}.
+    ${r.days ? `${r.days} rostered shift${r.days === 1 ? "" : "s"} on ${r.sheets} draft timesheet${r.sheets === 1 ? "" : "s"} marked as leave. ` : ""}Timesheets you start for these weeks will fill it in for you.
+    ${r.published.length ? `<br><span class="warn-text">Already published, so not changed: week ending ${r.published.map(displayDate).join(", ")}. Use <strong>Revise</strong> in the Library to update ${r.published.length === 1 ? "it" : "them"}.</span>` : ""}`;
+}
+// Take a form's leave dates off the timesheets again.
+function removeFormLeave(formId) {
+  setFormLeavePeriods(formId, [], "");
+  renderForms();
+  toast("Leave taken off your timesheets.");
 }
 
 // Called straight from the tap so phones allow sharing.
@@ -527,13 +575,28 @@ function initForms() {
   document.addEventListener("click", async e => {
     const lf = e.target.closest("[data-leave-form]");
     if (lf) return openLeaveForm(Number(lf.dataset.leaveForm));
+    const lp = e.target.closest("[data-leave-period]");
+    if (lp) {
+      const p = (state.leavePeriods || []).find(x => x.id === lp.dataset.leavePeriod);
+      const r = p && (state.forms || []).find(x => x.id === p.formId);
+      if (r) { showTab("forms"); openFormEditor(r.templateId, r.id); }
+      return;
+    }
+    const ul = e.target.closest("[data-form-unleave]");
+    if (ul) { if (confirm("Take this leave off your draft timesheets? (Published ones aren't changed.)")) removeFormLeave(ul.dataset.formUnleave); return; }
     const t = e.target.closest("[data-form-fill],[data-form-del],[data-form-open],[data-form-forget],[data-form-close],[data-form-make],[data-form-share],[data-form-download]");
     if (!t) return;
     const d = t.dataset;
     if (d.formFill) openFormEditor(d.formFill);
     else if (d.formOpen) { const r = (state.forms || []).find(x => x.id === d.formOpen); if (r) openFormEditor(r.templateId, r.id); }
     else if (d.formDel) { if (confirm("Remove this blank form from the app? (Filled copies stay.)")) { await idbDel(d.formDel); renderForms(); } }
-    else if (d.formForget) { if (confirm("Delete this filled form?")) { state.forms = (state.forms || []).filter(r => r.id !== d.formForget); saveState(); renderForms(); } }
+    else if (d.formForget) {
+      const hasLeave = (state.leavePeriods || []).some(p => p.formId === d.formForget);
+      if (confirm(hasLeave ? "Delete this filled form? Its leave will also be taken off your draft timesheets." : "Delete this filled form?")) {
+        if (hasLeave) setFormLeavePeriods(d.formForget, [], "");
+        state.forms = (state.forms || []).filter(r => r.id !== d.formForget); saveState(); renderForms();
+      }
+    }
     else if (d.formClose !== undefined) { readEditorValues(); $("formEditor").hidden = true; }
     else if (d.formMake !== undefined) saveAndMake();
     else if (d.formShare !== undefined) shareForm();

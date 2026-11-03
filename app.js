@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.03-1";
+const APP_VERSION = "2026.11.03-2";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -74,6 +74,8 @@ const LEAVE_TYPES = [
   "Examination Leave",
   "Interview Leave",
   "Marriage Leave",
+  "Maternity Leave",
+  "Additional Maternity Leave",
   "Shift Swap"
 ];
 
@@ -136,7 +138,8 @@ let state = {
     meEmail: "", meDefault: true,
     signatureMode: "draw", signatureText: "", signatureFont: "dancing", signatureImage: "" },
   currentId: null,
-  sheets: []
+  sheets: [],
+  leavePeriods: []           // [{ id, formId, type, from, to, source }] — long leave from a filled HSE form
 };
 
 const ui = {
@@ -1005,6 +1008,7 @@ function startTimesheet() {
     const base = state.profile.base;
     if (base) sheet.days.forEach(d => { d.station = base; });
     if (applyRoster(sheet)) {
+      applyLeavePeriods(sheet);            // e.g. maternity leave from a filled form
       const firstShift = sheet.days.findIndex(d => !d.done && !isPlainRest(d));
       if (firstShift >= 0) ui.pendingOpen = firstShift;
     }
@@ -1098,6 +1102,54 @@ function isPlainRest(d) {
   return d.roster === "rest" && resolvedActual(d).kind === "none" && !d.ot && !d.subs;
 }
 
+/* ---------- leave periods from filled HSE forms (e.g. maternity, parental) ----------
+ * Saving a form such as HR 108(i) Maternity Leave records its leave dates here. Every rostered
+ * shift in those dates — on draft timesheets now, and on timesheets started later — is marked as
+ * that leave. Published timesheets are never changed (use Revise). */
+
+function leavePeriodOn(dateIso) {
+  return (state.leavePeriods || []).find(p => p.from <= dateIso && dateIso <= p.to) || null;
+}
+// Mark the rostered shifts on a draft that fall in a leave period. Returns how many days changed.
+function applyLeavePeriods(sheet) {
+  if (sheet.status !== "draft") return 0;
+  let n = 0;
+  sheet.days.forEach(d => {
+    const p = leavePeriodOn(d.date);
+    if (!p || d.roster !== "times" || d.actual !== "same") return;   // rest days, and days already changed by hand, stay as they are
+    d.actual = "leave"; d.actualLeave = p.type; d.leaveSource = p.id; d.done = true;
+    n++;
+  });
+  if (n) sheet.history.push({ action: `Leave added from ${n === 1 ? "a form" : "forms"}`, at: new Date().toISOString() });
+  return n;
+}
+// Undo a leave period on draft timesheets: its days go back to "worked as rostered".
+function clearLeavePeriod(p) {
+  for (const s of state.sheets.filter(s => s.status === "draft")) {
+    s.days.forEach(d => {
+      if (d.leaveSource !== p.id) return;
+      if (d.actual === "leave" && d.actualLeave === p.type) { d.actual = "same"; d.actualLeave = ""; d.done = false; }
+      delete d.leaveSource;
+    });
+  }
+}
+// Replace the leave periods that came from one filled form. Returns what changed, for the message.
+function setFormLeavePeriods(formId, ranges, source) {
+  state.leavePeriods = state.leavePeriods || [];
+  state.leavePeriods.filter(p => p.formId === formId).forEach(clearLeavePeriod);
+  state.leavePeriods = state.leavePeriods.filter(p => p.formId !== formId);
+  const added = ranges.map(r => ({ id: newId(), formId, type: r.type, from: r.from, to: r.to, source }));
+  state.leavePeriods.push(...added);
+  let days = 0, sheets = 0;
+  for (const s of state.sheets) { const n = applyLeavePeriods(s); if (n) { days += n; sheets++; } }
+  const published = state.sheets.filter(s => s.status === "published" && !state.sheets.some(o => o.revisionOf === s.id) &&
+    added.some(p => s.days.some(d => p.from <= d.date && d.date <= p.to && d.roster === "times" && !(d.actual === "leave" && d.actualLeave === p.type))))
+    .map(s => s.weekEnding);
+  saveState();
+  if (currentSheet()) renderTimesheet();
+  return { periods: added, days, sheets, published };
+}
+
 /* ---------- leave days → HSE leave forms (setups in form-profiles.js) ---------- */
 
 function dayLeaveType(d) {
@@ -1124,6 +1176,17 @@ function linkedLeaveForm(sheet, run) {
 }
 function leaveFormRow(d, i) {
   const sheet = currentSheet();
+  const period = d.leaveSource && d.actual === "leave" && (state.leavePeriods || []).find(p => p.id === d.leaveSource);
+  if (period) {
+    return `
+    <div class="leave-form">
+      <div class="leave-form__text">
+        <strong>Added from your ${esc(period.source)} form</strong>
+        <span class="muted">${esc(period.type)} ${shortDate(period.from)} – ${shortDate(period.to)}</span>
+      </div>
+      <button type="button" class="btn btn--small" data-leave-period="${esc(period.id)}">Open form</button>
+    </div>`;
+  }
   const p = sheet && leaveFormProfile(dayLeaveType(d));
   if (!p) return "";
   const run = leaveRun(sheet, i);

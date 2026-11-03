@@ -6,7 +6,7 @@ A single document to start a new project or session from. It covers what the app
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.03-1`, 37 commits, all pushed.
+- **State at handover:** app version `2026.11.03-2`, 37 commits, all pushed.
 
 ---
 
@@ -145,6 +145,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 1. **Standard-day leave hours:** confirm with HR which leave types pay 7.8h and whether that's right (parked: "we'll come back to the hours").
 2. **HSE forms:** 18 forms are built in. Still to do: get the PDFs for HR 108(b), 108(o) and HR 110 and add setups; HR 108(l) needs text placed by position (no fillable boxes); HR 117 needs a fillable PDF version. Check the filled forms on a real phone and with HR.
 3. **Link leave days to forms:** done for Study, Examination, Interview, Marriage, Parental and Force Majeure leave (dates and days pre-filled; `leaveType` / `leaveFill` in each form setup). Leave that runs across two timesheets gives one form per week for now.
+   - **The other way round:** saving an HR 108(i) Maternity or HR 108(j) Parental form records `state.leavePeriods` (`leaveRanges` in the form setup) and marks rostered shifts in those dates as leave on draft and future timesheets (`applyLeavePeriods`, `setFormLeavePeriods` in `app.js`). Leave types *Maternity Leave* and *Additional Maternity Leave* were added.
 4. **Payroll confirmations:**
    - Leave on a part day: Roster row as shift times vs "Annual Leave" (currently shift times).
    - Where early-finish / late-start / leave notes go (currently column M).

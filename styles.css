@@ -573,6 +573,7 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .bf__main strong { color: var(--primary); margin-right: 4px; white-space: nowrap; }
 .bf__main:hover, .bf__main:focus-visible { background: var(--primary-soft); }
 .bf__link { display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--border); font-size: .78rem; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.leave-note { margin-top: 6px; font-size: .88rem; color: var(--text); }
 .leave-form { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--leave-soft); }
 .leave-form__text { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .leave-form__text strong { color: var(--leave); }
