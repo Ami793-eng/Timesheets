@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.03-4">
+  <link rel="stylesheet" href="styles.css?v=2026.11.03-5">
 </head>
 <body>
   <header class="app-header">
@@ -186,10 +186,10 @@
         <label class="check check--small"><input type="checkbox" id="lvCcMe"> <span>CC me (uses My email from My details)</span></label>
         <div class="grid-3">
           <div class="field"><label for="lvAl">Annual leave <span class="opt">hours</span></label><input type="number" id="lvAl" min="0" step="0.1" inputmode="decimal" placeholder="179.4"></div>
-          <div class="field"><label for="lvBh">Bank holidays <span class="opt">hours</span></label><input type="number" id="lvBh" min="0" step="0.1" inputmode="decimal" placeholder="70.2"></div>
+          <div class="field"><label for="lvBh">Bank holidays <span class="opt">hours</span></label><input type="number" id="lvBh" min="0" step="0.1" inputmode="decimal" placeholder="78"></div>
           <div class="field"><label for="lvCarried">Carried over <span class="opt">hours</span></label><input type="number" id="lvCarried" min="0" step="0.5" inputmode="decimal" placeholder="0"></div>
         </div>
-        <p class="hint">NAS policy NASPO36: 179.4h annual leave (23 days), or 187.2h (24 days) for some staff employed before 2007, plus 70.2h for the 9 bank holidays (9 × 7.8h). Part-time staff and those who joined during the year get a pro rata share. Up to one week can be carried over.</p>
+        <p class="hint">NAS policy NASPO36: 179.4h annual leave (23 days), or 187.2h (24 days) for some staff employed before 2007, plus 78h for the 10 bank holidays (10 × 7.8h, including St Brigid's Day, added in 2023). Part-time staff and those who joined during the year get a pro rata share. Up to one week can be carried over.</p>
         <div class="field"><label for="lvYearStart">Leave year starts</label><select id="lvYearStart"></select><p class="hint">NAS leave year: 1 April to 31 March.</p></div>
       </details>
     </section>
@@ -386,7 +386,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.03-4</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.03-5</span></p>
       </div>
     </section>
   </main>
@@ -444,9 +444,9 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="form-profiles.js?v=2026.11.03-4" defer></script>
-  <script src="leave.js?v=2026.11.03-4" defer></script>
-  <script src="forms.js?v=2026.11.03-4" defer></script>
-  <script src="app.js?v=2026.11.03-4"></script>
+  <script src="form-profiles.js?v=2026.11.03-5" defer></script>
+  <script src="leave.js?v=2026.11.03-5" defer></script>
+  <script src="forms.js?v=2026.11.03-5" defer></script>
+  <script src="app.js?v=2026.11.03-5"></script>
 </body>
 </html>

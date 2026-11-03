@@ -9,7 +9,7 @@
  *
  * Entitlement and structured leave follow NAS policy NASPO36 (Structured Leave & Entitlements):
  * leave year 1 April – 31 March; 179.4h annual leave (23 days; 187.2h for some pre-2007 staff)
- * plus 70.2h for the 9 bank holidays; blocks of 78h in summer and 39h in autumn and spring,
+ * plus 78h for the 10 bank holidays (the policy lists 9; St Brigid's Day was added in 2023); blocks of 78h in summer and 39h in autumn and spring,
  * each applied for in its own window. People don't keep to the exact figures (e.g. a 36h week,
  * or two separate weeks in summer), so all annual leave in a season counts towards its block,
  * and a block counts as done at 90% of its hours (the policy allows minor local variation).
@@ -29,7 +29,8 @@ const STRUCTURED_BLOCKS = [
 const BLOCK_DONE_SHARE = 0.9;
 
 function leaveSettings() {
-  state.profile.leave = { to: "", ccMe: true, alH: "179.4", bhH: "70.2", carriedH: "", yearStart: 4, ...(state.profile.leave || {}) };
+  state.profile.leave = { to: "", ccMe: true, alH: "179.4", bhH: "78", carriedH: "", yearStart: 4, ...(state.profile.leave || {}) };
+  if (state.profile.leave.bhH === "70.2") state.profile.leave.bhH = "78";      // old default: 9 bank holidays → 10
   return state.profile.leave;
 }
 const fmtHours = mins => `${Math.round(mins / 6) / 10}h`.replace(".0h", "h");
