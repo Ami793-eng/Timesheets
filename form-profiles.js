@@ -19,6 +19,10 @@
  *        long    a large box — shown as a multi-line text area
  *   combos               — one value spread over several boxes, e.g. a date in
  *                          8 one-character squares: { id, label, parts: [...] }
+ *   leaveRanges(v, on)   — leave dates in the filled form, put on the timesheets: returns
+ *                          [{ type, from, to }]; v(box) reads a box, on(group) a ticked section
+ *   leaveType, leaveFill — the timesheet leave type this form is for, and which
+ *                          boxes take the leave's from / to dates and number of days
  *   signatures           — where to draw the employee signature when the form
  *                          has a signature line but no box for it
  */
@@ -220,6 +224,7 @@ const FORM_PROFILES = [
   /* ---------------- HR 108(e) Examination Leave ---------------- */
   {
     id: "hr108e", code: "HR 108(e)", title: "Examination Leave",
+    leaveType: "Examination Leave", leaveFill: { "from date": "from", "to date": "to", "no. of days leave": "days" },
     file: "forms/HR_108e_application_form_for_examination_leave.pdf", url: HSE + "3008/HR_108e_application_form_for_examination_leave.pdf",
     match: (n, t) => titled(t, /108\s*e\b/i) || has(n, "no. of days leave", "Name capital"),
     fields: {
@@ -235,6 +240,7 @@ const FORM_PROFILES = [
   /* ---------------- HR 108(f) Force Majeure Leave ---------------- */
   {
     id: "hr108f", code: "HR 108(f)", title: "Force Majeure Leave",
+    leaveType: "Force Majeure", leaveFill: { "from": "from", "to": "to", "no of days applied for": "days" },
     file: "forms/HR_108f_application_form_for_force_majeure_leave.pdf", url: HSE + "422/HR_108f_application_form_for_force_majeure_leave.pdf",
     match: (n, t) => titled(t, /108\s*f\b/i) || has(n, "Names injured/ill* person"),
     fields: {
@@ -303,6 +309,14 @@ const FORM_PROFILES = [
     id: "hr108i", code: "HR 108(i)", title: "Maternity Leave",
     file: "forms/HR_108i_maternity_leave_application_form_V10.pdf", url: HSE + "424/HR_108i_maternity_leave_application_form_V10.pdf",
     match: (n, t) => titled(t, /108\s*i\b/i) || has(n, "Doctors Stamp", "Premature Maternity Leave-0"),
+    // A postponement (Section 5) replaces the original dates with the revised ones.
+    leaveRanges: (v, on) => on("postpone") && (v("Maternity Leave-18") || v("Additional Maternity Leave-20") || v("Premature Maternity Leave-22"))
+      ? [{ type: "Maternity Leave", from: v("Maternity Leave-18"), to: v("Maternity Leave-27") },
+         { type: "Additional Maternity Leave", from: v("Additional Maternity Leave-20"), to: v("Additional Maternity Leave-26") },
+         { type: "Maternity Leave", from: v("Premature Maternity Leave-22"), to: v("Premature Maternity Leave-25") }]
+      : [{ type: "Maternity Leave", from: v("Maternity Leave-7"), to: v("Maternity Leave-13") },
+         { type: "Additional Maternity Leave", from: v("Additional Maternity Leave-5"), to: v("Additional Maternity Leave-10") },
+         { type: "Maternity Leave", from: v("Premature Maternity Leave-0"), to: v("Premature Maternity Leave-8") }],
     fields: {
       ...head({ surname: "Surname", first: "First Name", grade: "Grade", number: "Grade-0", base: "Location", pps: "Location-7", today: "Textfield-7", name: "Name", phone: "Contact Tel No" }),
       "CheckBox14":                     { label: "Maternity Leave (tick)" },
@@ -365,8 +379,13 @@ const FORM_PROFILES = [
   /* ---------------- HR 108(j) Parental Leave ---------------- */
   {
     id: "hr108j", code: "HR 108(j)", title: "Parental Leave",
+    leaveType: "Parental Leave", leaveFill: { "Textfield-4": "from", "Textfield-6": "to", "Textfield-8": "from", "Textfield-2": "daysText" },
     file: "forms/hr-108-j-parental-leave-application-form_V5.pdf", url: HSE + "212/hr-108-j-parental-leave-application-form_V5.pdf",
     match: (n, t) => titled(t, /108\s*j\b/i) || has(n, "Name of child", "Date of adoption order if applicable"),
+    // The agreed dates (Confirmation Agreement page) win over the proposed ones.
+    leaveRanges: (v, on) => on("agreement") && v("Textfield-53") && v("Textfield-55")
+      ? [{ type: "Parental Leave", from: v("Textfield-53"), to: v("Textfield-55") }]
+      : [{ type: "Parental Leave", from: v("Textfield-4"), to: v("Textfield-6") }],
     fields: {
       ...head({ surname: "Surname", first: "First Name", grade: "Grade", number: "Grade-0", base: "Location", pps: "PPS No", today: "Textfield-16" }),
       "Name of child":                          { label: "Name of child" },
@@ -471,6 +490,7 @@ const FORM_PROFILES = [
   /* ---------------- HR 108(n) Special Leave on Marriage ---------------- */
   {
     id: "hr108n", code: "HR 108(n)", title: "Special Leave on Marriage",
+    leaveType: "Marriage Leave", leaveFill: { "From Date": "from", "To Date": "to", "Number of days leave applied for": "days" },
     file: "forms/HR_108n_employee_application_form_for_special_leave_on_marriage.pdf", url: HSE + "775/HR_108n_employee_application_form_for_special_leave_on_marriage.pdf",
     match: (n, t) => titled(t, /108\s*n\b|marriage/i) || has(n, "Name (PRINT)", "Checked by Payroll"),
     fields: {
@@ -492,6 +512,7 @@ const FORM_PROFILES = [
   /* ---------------- HR 108(p) Study Leave ---------------- */
   {
     id: "hr108p", code: "HR 108(p)", title: "Study Leave",
+    leaveType: "Study Leave", leaveFill: { "From Date": "from", "To Date": "to", "Number of days leave applied for": "days" },
     file: "forms/HR_108p_employee_application_form_for_study_leave.pdf", url: HSE + "773/HR_108p_employee_application_form_for_study_leave.pdf",
     match: (n, t) => titled(t, /108\s*p\b|study leave/i),
     fields: {
@@ -545,6 +566,7 @@ const FORM_PROFILES = [
   /* ---------------- HR 108(s) Interview Leave ---------------- */
   {
     id: "hr108s", code: "HR 108(s)", title: "Interview Leave",
+    leaveType: "Interview Leave", leaveFill: { "from date": "from", "to date": "to" },
     file: "forms/HR_108s_employee_application_form_for_interview_leave.pdf", url: HSE + "770/HR_108s_employee_application_form_for_interview_leave.pdf",
     match: (n, t) => titled(t, /108\s*s\b|interview/i) || has(n, "name(capitals)", "if no, give reason"),
     fields: {

@@ -573,9 +573,51 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .bf__main strong { color: var(--primary); margin-right: 4px; white-space: nowrap; }
 .bf__main:hover, .bf__main:focus-visible { background: var(--primary-soft); }
 .bf__link { display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--border); font-size: .78rem; color: var(--muted); text-decoration: none; white-space: nowrap; }
+/* Leave tab */
+.chip-ok { background: var(--ok-soft); color: var(--ok); }
+.chip-bad { background: var(--warn-soft); color: var(--danger); }
+.lv-year { font-weight: 700; margin: 4px 0 10px; }
+.lv-year .muted { font-weight: 400; font-size: .88rem; }
+.lv-bar { display: flex; height: 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+.lv-bar__taken { background: var(--primary); }
+.lv-bar__booked { background: var(--primary); opacity: .4; }
+.lv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px; margin: 12px 0 4px; }
+.lv-stats div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+.lv-stats strong { font-size: 1.15rem; }
+.lv-stats span { font-size: .78rem; color: var(--muted); }
+.lv-item { display: grid; gap: 8px; }
+.lv-item--off { opacity: .65; }
+.lv-item__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.lv-item h3 { margin: .15rem 0; }
+.lv-note { margin: 0; font-size: .9rem; color: var(--muted); }
+.lv-shifts { display: grid; gap: 4px; margin: 4px 0 12px; font-size: .9rem; }
+.lv-shifts > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--leave-soft); }
+.lv-reminder { border-left: 4px solid var(--danger); background: var(--warn-soft); }
+.lv-reminder p { margin: 6px 0 10px; }
+.lv-blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 480px) { .lv-blocks { grid-template-columns: 1fr; } }
+.lv-block { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: .9rem; }
+.lv-block__top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.lv-block__bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.lv-block__bar span { display: block; height: 100%; background: var(--primary); }
+.lv-block--done .lv-block__bar span { background: var(--ok); }
+.lv-block__apply { font-size: .8rem; }
+.tab--dot { position: relative; }
+.tab--dot::after { content: ""; position: absolute; top: 8px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #ff6b5b; }
+.lv-settings summary { cursor: pointer; list-style: none; }
+.lv-settings summary h3 { display: inline; }
+.lv-settings[open] summary { margin-bottom: 12px; }
+.email-preview-wrap summary { cursor: pointer; color: var(--primary); font-weight: 600; margin: 4px 0 8px; }
+.leave-note { margin-top: 6px; font-size: .88rem; color: var(--text); }
+.leave-form { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--leave-soft); }
+.leave-form__text { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.leave-form__text strong { color: var(--leave); }
 .form-opt { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
 .form-opt summary { color: var(--primary); }
 .field--wide { grid-column: 1 / -1; }
 .field--wide textarea { width: 100%; font: inherit; padding: .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .form-out { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .tab { font-size: .95rem; padding-left: .2rem; padding-right: .2rem; }
+/* Five tabs: keep each on one line on narrow phones */
+.tab { white-space: nowrap; }
+@media (max-width: 420px) { .tabs { gap: 0; } .tab { font-size: .84rem; padding-left: .1rem; padding-right: .1rem; } }
