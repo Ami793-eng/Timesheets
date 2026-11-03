@@ -9,10 +9,10 @@
  *
  * Entitlement and structured leave follow NAS policy NASPO36 (Structured Leave & Entitlements):
  * leave year 1 April – 31 March; 179.4h annual leave (23 days; 187.2h for some pre-2007 staff)
- * plus 78h for the 10 bank holidays (the policy lists 9; St Brigid's Day was added in 2023); blocks of 78h in summer and 39h in autumn and spring,
- * each applied for in its own window. People don't keep to the exact figures (e.g. a 36h week,
- * or two separate weeks in summer), so all annual leave in a season counts towards its block,
- * and a block counts as done at 90% of its hours (the policy allows minor local variation).
+ * plus 78h for the 10 bank holidays (the policy lists 9; St Brigid's Day was added in 2023); structured
+ * blocks of two weeks in summer and one week each in autumn and spring, each applied for in its own
+ * window. A block week is any 7 days in a row (Mon–Sun, Fri–Thu… the start day doesn't matter) where
+ * every rostered shift is annual leave; summer's two weeks can be together or separate.
  */
 "use strict";
 
@@ -22,11 +22,11 @@ const lx = { editing: null };   // the request being made in the editor
 
 // NASPO36 section 9.1 / 10.1. Months are 1-12; "next" means in the following calendar year of the leave year.
 const STRUCTURED_BLOCKS = [
-  { id: "summer", name: "Summer", hours: 78, from: [4, 1], to: [9, 30], applyFrom: [1, 1], applyTo: [2, 28] },
-  { id: "autumn", name: "Autumn", hours: 39, from: [10, 1], to: [12, 31], applyFrom: [7, 1], applyTo: [8, 31] },
-  { id: "spring", name: "Spring", hours: 39, from: [1, 1], to: [3, 31], next: true, applyFrom: [10, 1], applyTo: [11, 30] }
+  { id: "summer", name: "Summer", weeks: 2, from: [4, 1], to: [9, 30], applyFrom: [1, 1], applyTo: [2, 28] },
+  { id: "autumn", name: "Autumn", weeks: 1, from: [10, 1], to: [12, 31], applyFrom: [7, 1], applyTo: [8, 31] },
+  { id: "spring", name: "Spring", weeks: 1, from: [1, 1], to: [3, 31], next: true, applyFrom: [10, 1], applyTo: [11, 30] }
 ];
-const BLOCK_DONE_SHARE = 0.9;
+const weeksText = n => `${n === 2 ? "two weeks" : n === 1 ? "one week" : `${n} weeks`}`;
 
 function leaveSettings() {
   state.profile.leave = { to: "", ccMe: true, alH: "179.4", bhH: "78", carriedH: "", yearStart: 4, ...(state.profile.leave || {}) };
@@ -112,8 +112,23 @@ function leaveTotals(year = leaveYear()) {
 
 /* ---------- structured leave blocks (NASPO36 section 9) ---------- */
 
-// The three blocks of a leave year, with their dates, application window, hours booked and status.
-function structuredBlocks(year = leaveYear()) {
+// Whole weeks off starting in [from, to]: 7 days in a row, any start day, where every rostered shift is
+// annual leave (and there's at least one). Counted without overlap, so two separate weeks count as two.
+function weeksOff(from, to, alDates) {
+  const shiftDay = new Map();
+  const isShift = iso => { if (!shiftDay.has(iso)) shiftDay.set(iso, rosteredShifts(iso, iso).length > 0); return shiftDay.get(iso); };
+  const dates = datesBetween(from, to);
+  let weeks = 0;
+  for (let i = 0; i < dates.length;) {
+    const win = Array.from({ length: 7 }, (_, k) => { const d = parseIso(dates[i]); d.setDate(d.getDate() + k); return isoLocal(d); });
+    if (win.some(d => alDates.has(d)) && win.every(d => alDates.has(d) || !isShift(d))) { weeks++; i += 7; } else i++;
+  }
+  return weeks;
+}
+const annualLeaveDates = () => new Set(annualLeaveDays().map(e => e.date));
+
+// The three blocks of a leave year, with their dates, application window, weeks booked and status.
+function structuredBlocks(year = leaveYear(), alDates = annualLeaveDates()) {
   const y = Number(year.start.slice(0, 4));
   const today = isoLocal(new Date());
   const at = (yy, [m, d]) => isoLocal(new Date(yy, m - 1, d));
@@ -122,9 +137,10 @@ function structuredBlocks(year = leaveYear()) {
     // Every application window falls in the calendar year the leave year starts (summer: Jan–Feb, before 1 April).
     const applyFrom = at(y, b.applyFrom), applyTo = at(y, b.applyTo);
     const mins = alMinsBetween(from, to);
-    const done = mins >= b.hours * 60 * BLOCK_DONE_SHARE;
-    const status = done ? "done" : today > to ? (mins ? "missed" : "norecord") : today >= applyFrom && today <= applyTo ? "apply" : today < applyFrom ? "soon" : "late";
-    return { ...b, from, to, applyFrom, applyTo, mins, done, state: status, yearLabel: year.label };
+    const got = weeksOff(from, to, alDates);
+    const done = got >= b.weeks;
+    const status = done ? "done" : today > to ? (mins ? "missed" : "norecord") : today >= applyFrom && today <= applyTo ? "apply" : today < applyFrom ? "soon" : "overdue";
+    return { ...b, from, to, applyFrom, applyTo, mins, got, done, state: status, yearLabel: year.label };
   });
 }
 // The block to nudge about right now (application window open and not booked yet), if any.
@@ -168,22 +184,21 @@ function renderLeave() {
   $("leaveReminder").hidden = !rem;
   $("leaveReminder").innerHTML = rem ? `
     <strong>Book your ${esc(rem.name.toLowerCase())} leave</strong>
-    <p>Applications for ${esc(rem.name)} ${displayDate(rem.from)} – ${displayDate(rem.to)} are open until <strong>${displayDate(rem.applyTo)}</strong>. The block is ${rem.hours}h${rem.mins ? ` — you have ${fmtHours(rem.mins)} booked so far` : ""}.</p>
+    <p>Applications for ${esc(rem.name)} ${displayDate(rem.from)} – ${displayDate(rem.to)} are open until <strong>${displayDate(rem.applyTo)}</strong>. The block is ${weeksText(rem.weeks)} off${rem.got ? ` — you have ${weeksText(rem.got)} booked so far` : ""}.</p>
     <button type="button" class="btn btn--small btn--primary" data-lv-block="${esc(rem.id)}" data-lv-block-from="${esc(rem.from)}">Request ${esc(rem.name.toLowerCase())} leave</button>` : "";
 
   const blocks = structuredBlocks(y);
-  const label = { done: ["Done", "chip-ok"], apply: ["Apply now", "chip-warn"], soon: ["Not yet", "chip-plain"], late: ["Not booked", "chip-warn"], missed: ["Short", "chip-bad"], norecord: ["No record", "chip-plain"] };
+  const label = { done: ["Done", "chip-ok"], apply: ["Apply now", "chip-warn"], soon: ["Not yet", "chip-plain"], overdue: ["Overdue", "chip-bad"], missed: ["Short", "chip-bad"], norecord: ["No record", "chip-plain"] };
   $("leaveBlocks").innerHTML = `
     <div class="lv-blocks">${blocks.map(b => `
       <div class="lv-block lv-block--${b.state}">
         <div class="lv-block__top"><strong>${esc(b.name)}</strong><span class="chip2 ${label[b.state][1]}">${label[b.state][0]}</span></div>
         <div class="muted">${shortDate(b.from)} – ${shortDate(b.to)}</div>
-        <div class="lv-block__bar"><span style="width:${Math.min(100, Math.round(b.mins / (b.hours * 60) * 100))}%"></span></div>
-        <div><strong>${fmtHours(b.mins)}</strong> <span class="muted">of ${b.hours}h</span></div>
-        <div class="lv-block__apply muted">${["done", "missed", "norecord"].includes(b.state) ? "" : b.state === "late" ? `Applications closed ${shortDate(b.applyTo)} — ask your line manager` : `Apply ${shortDate(b.applyFrom)} – ${shortDate(b.applyTo)}`}</div>
+        <div class="lv-block__bar"><span style="width:${Math.min(100, Math.round(b.got / b.weeks * 100))}%"></span></div>
+        <div><strong>${Math.min(b.got, b.weeks)} of ${b.weeks}</strong> <span class="muted">week${b.weeks === 1 ? "" : "s"}${b.mins ? ` · ${fmtHours(b.mins)}` : ""}</span></div>
       </div>`).join("")}
     </div>
-    <p class="hint">NASPO36: a minimum of 156h in three blocks. All annual leave in a season counts — one block or separate weeks — and a block counts as done at about 90% of its hours (e.g. a 36h week for 39h).</p>`;
+    <p class="hint">A block week is any 7 days in a row — Mon–Sun, Fri–Thu, any start day — with every rostered shift on annual leave. Summer needs two weeks, together or separate.</p>`;
 
   const list = (state.leaveRequests || []).slice().sort((a, b) => b.from.localeCompare(a.from));
   const today = isoLocal(new Date());
@@ -283,10 +298,13 @@ function noticeHint(r) {
 // Which structured block this annual leave counts towards, and where that leaves it.
 function blockHint(r) {
   if (r.type !== "Annual Leave" || !r.shifts.length) return "";
-  const b = structuredBlocks(leaveYear(r.from)).find(x => r.from >= x.from && r.from <= x.to);
+  const withThis = annualLeaveDates();
+  r.shifts.forEach(s => withThis.add(s.date));
+  const b = structuredBlocks(leaveYear(r.from), withThis).find(x => r.from >= x.from && r.from <= x.to);
   if (!b) return "";
-  const add = r.hours * 60, after = b.mins + add;
-  return `<p class="hint">Counts towards your <strong>${esc(b.name)} ${esc(b.yearLabel)}</strong> block: ${fmtHours(after)} of ${b.hours}h with this request${after >= b.hours * 60 * BLOCK_DONE_SHARE && !b.done ? " ✓" : ""}.</p>`;
+  const before = structuredBlocks(leaveYear(r.from)).find(x => x.id === b.id);
+  if (b.got > before.got) return `<p class="hint">✓ A full week off — your <strong>${esc(b.name)} ${esc(b.yearLabel)}</strong> block will be ${Math.min(b.got, b.weeks)} of ${b.weeks} week${b.weeks === 1 ? "" : "s"}.</p>`;
+  return `<p class="hint">Counts as annual leave in ${esc(b.name)} ${esc(b.yearLabel)}, but isn't a full block week (7 days in a row with every rostered shift on leave).</p>`;
 }
 
 /* ---------- the email ---------- */
