@@ -55,10 +55,23 @@ function rosteredShifts(fromIso, toIso) {
     if (d && d.roster === "rest") return null;
     const rw = rosterWeek(weekEndingOf(date));
     if (!rw) return { date, label: "", mins: 0, unknown: true };
-    const sh = ROSTER_SHIFTS[rw.codes[dayIndex(date)]];
+    const sh = rw.shifts[dayIndex(date)];
     if (!sh || !sh.start) return null;                              // rest day
     return { date, label: sh.label, from: sh.start, to: sh.finish, mins: shiftMins(sh.start, sh.finish) };
   }).filter(Boolean);
+}
+
+// Leave requested before the shifts were known (no roster yet) gets its shifts and hours worked out
+// once they are — e.g. after a non-rostered person enters their next weeks.
+function refreshRequestShifts() {
+  for (const r of state.leaveRequests || []) {
+    if (!["requested", "approved"].includes(r.status) || !r.shifts.some(s => s.unknown)) continue;
+    const shifts = rosteredShifts(r.from, r.to);
+    if (shifts.some(s => s.unknown)) continue;
+    const autoHours = Math.round(r.shifts.reduce((a, s) => a + s.mins, 0) / 6) / 10;
+    if (r.hours === autoHours) r.hours = Math.round(shifts.reduce((a, s) => a + s.mins, 0) / 6) / 10;
+    r.shifts = shifts;
+  }
 }
 
 /* ---------- the leave year and the tracker ---------- */

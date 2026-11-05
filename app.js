@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-6";
+const APP_VERSION = "2026.11.05-7";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -634,10 +634,19 @@ function renderProfile() {
 
 function renderRosterSettings() {
   const p = state.profile;
+  const entered = p.rosterId === ENTERED_ROSTER;
   $("pRoster").innerHTML = opt("", "No roster (fill in manually)", !p.rosterId) +
-    Object.entries(ROSTERS).map(([id, r]) => opt(id, r.name, p.rosterId === id)).join("");
-  $("pRosterWrap").hidden = !p.rosterId;
-  if (!p.rosterId) return;
+    Object.entries(ROSTERS).map(([id, r]) => opt(id, r.name, p.rosterId === id)).join("") +
+    opt(ENTERED_ROSTER, "Non-rostered (I enter my shifts)", entered);
+  $("pRosterWrap").hidden = !p.rosterId || entered;
+  $("pEnteredWrap").hidden = !entered;
+  if (entered) {
+    $("pRosterWeeks").innerHTML = ENTRY_WEEK_CHOICES.map(n => opt(String(n), weeksLabel(n), entryWeeks() === n)).join("");
+    $("pRoadBaseE").innerHTML = opt("", "Ask each time", !p.roadBase) + ROAD_STATIONS.map(s => opt(s, s, p.roadBase === s)).join("");
+    const to = rosterEnteredTo();
+    $("pEnteredStatus").innerHTML = to ? `Shifts entered up to <strong>${esc(displayDate(to))}</strong>.` : `No shifts entered yet.`;
+  }
+  if (!p.rosterId || entered) return;
   $("pRoadBase").innerHTML = opt("", "Ask each time", !p.roadBase) + ROAD_STATIONS.map(s => opt(s, s, p.roadBase === s)).join("");
   $("pRosterStart").value = p.rosterAnchor || mondayOf(isoLocal(new Date()));
   $("pRosterLine").innerHTML = opt("", "— Select —", !p.rosterAnchorLine) +
@@ -675,7 +684,7 @@ function onLeaveRulesChange() {
 function onRosterChange() {
   const p = state.profile;
   p.rosterId = $("pRoster").value;
-  if (!p.rosterId) { p.rosterAnchor = ""; p.rosterAnchorLine = 0; }
+  if (!p.rosterId || p.rosterId === ENTERED_ROSTER) { p.rosterAnchor = ""; p.rosterAnchorLine = 0; }
   else {
     const start = $("pRosterStart").value || mondayOf(isoLocal(new Date()));
     if (parseIso(start).getDay() !== 1) toast(`Using the Monday of that week: ${displayDate(mondayOf(start))}.`);
@@ -939,10 +948,12 @@ function updateWeekHint() {
     hint.textContent = `Monday ${displayDate(weekDates(v)[0])} to Sunday ${displayDate(v)}`;
   }
   const rw = rosterWeek(isoLocal(nextSunday(d)));
+  const missing = !rw && typeof isEnteredRoster === "function" && isEnteredRoster();
   $("weekRoster").innerHTML = rw
-    ? `<strong>Roster line ${rw.line}</strong> · ${esc(describeRosterWeek(rw))}<br><span class="muted">Shifts and rest days will be filled in for you.</span>`
-    : "";
-  $("weekRoster").hidden = !rw;
+    ? `<strong>${rw.entered ? "My shifts" : `Roster line ${rw.line}`}</strong> · ${esc(describeRosterWeek(rw))}<br><span class="muted">Shifts and rest days will be filled in for you.</span>`
+    : missing ? `<strong>No shifts entered for this week yet.</strong><br><span class="muted">You'll be asked to enter them when you start.</span>` : "";
+  $("weekRoster").hidden = !rw && !missing;
+  if ($("rosterDue")) $("rosterDue").innerHTML = typeof rosterDueNotice === "function" ? rosterDueNotice() : "";
 }
 
 function mondayOf(iso) {
@@ -963,27 +974,31 @@ function rosterLineFor(weekEndingIso) {
   return (((p.rosterAnchorLine - 1 + weeks) % n) + n) % n + 1;
 }
 
+// The roster for a week: { line, roster, codes, shifts[7] } where shifts[i] is { label, start, finish }
+// (no start on a rest day). From a fixed rolling roster, or the shifts a non-rostered person entered.
 function rosterWeek(weekEndingIso) {
+  if (typeof isEnteredRoster === "function" && isEnteredRoster()) return enteredRosterWeek(weekEndingIso);
   const line = rosterLineFor(weekEndingIso);
   if (!line) return null;
   const r = ROSTERS[state.profile.rosterId];
-  return { line, roster: r, codes: r.lines[line - 1].split("") };
+  const codes = r.lines[line - 1].split("");
+  return { line, roster: r, codes, shifts: codes.map(c => ROSTER_SHIFTS[c]) };
 }
 
 function describeRosterWeek(rw) {
-  return rw.codes.map((c, i) => `${DAYS[i].short} ${c === "R" ? "Rest" : ROSTER_SHIFTS[c].label}`).join(" · ");
+  return rw.shifts.map((sh, i) => `${DAYS[i].short} ${!sh.start ? "Rest" : rw.codes[i] === "O" ? `${sh.start}–${sh.finish}` : sh.label}`).join(" · ");
 }
 
 // Pre-fill a new timesheet from the roster: shifts "worked as rostered", rest days boxed off.
 function applyRoster(sheet) {
   const rw = rosterWeek(sheet.weekEnding);
   if (!rw) return false;
-  sheet.rosterLine = rw.line;
+  sheet.rosterLine = rw.line || null;
   sheet.rosterName = rw.roster.name;
   rw.codes.forEach((code, i) => {
     const d = sheet.days[i];
-    const sh = ROSTER_SHIFTS[code];
-    d.station = code === "X" ? (state.profile.roadBase || "") : rw.roster.station;
+    const sh = rw.shifts[i];
+    d.station = code === "X" ? (state.profile.roadBase || "") : (rw.roster.station || d.station);
     d.rosterLabel = sh.label;
     if (code === "R") {
       d.roster = "rest"; d.actual = "none"; d.done = false;   // confirmed with one tap as the week goes on
@@ -991,14 +1006,22 @@ function applyRoster(sheet) {
       d.roster = "times"; d.rosterFrom = sh.start; d.rosterTo = sh.finish; d.actual = "same";
     }
   });
-  sheet.history.push({ action: `Filled from ${rw.roster.name}, line ${rw.line}`, at: new Date().toISOString() });
+  sheet.history.push({ action: `Filled from ${rw.roster.name}${rw.line ? `, line ${rw.line}` : ""}`, at: new Date().toISOString() });
   return true;
 }
 
 function startTimesheet() {
   const v = $("weekEnding").value;
   if (!v) return toast("Pick the week-ending Sunday.", true);
-  const we = isoLocal(nextSunday(parseIso(v)));
+  startTimesheetFor(isoLocal(nextSunday(parseIso(v))));
+}
+
+// Non-rostered staff are asked for their shifts first when the week isn't entered yet.
+function startTimesheetFor(we, { skipRoster = false } = {}) {
+  if (!skipRoster && typeof isEnteredRoster === "function" && isEnteredRoster() && !rosterWeek(we)
+      && !state.sheets.some(s => s.status === "draft" && s.weekEnding === we)) {
+    return openRosterEntry(weekDates(we)[0], we);
+  }
   const existing = state.sheets.find(s => s.status === "draft" && s.weekEnding === we);
   if (existing) {
     state.currentId = existing.id;
@@ -2753,6 +2776,8 @@ function bind() {
   $("pStdDayLeave").addEventListener("change", onLeaveRulesChange);
   $("pRosterStart").addEventListener("change", onRosterChange);
   $("pRoadBase").addEventListener("change", () => { state.profile.roadBase = $("pRoadBase").value; saveState(); toast("Road base saved."); });
+  $("pRoadBaseE").addEventListener("change", () => { state.profile.roadBase = $("pRoadBaseE").value; saveState(); toast("Road base saved."); });
+  $("pRosterWeeks").addEventListener("change", () => { state.profile.rosterWeeks = Number($("pRosterWeeks").value) || 4; saveState(); renderRosterSettings(); toast("Saved."); });
   ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);

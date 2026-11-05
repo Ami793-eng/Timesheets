@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.05-6">
+  <link rel="stylesheet" href="styles.css?v=2026.11.05-7">
 </head>
 <body>
   <header class="app-header">
@@ -59,6 +59,7 @@
           <small class="hint" id="weekEndingHint"></small>
           <div class="week-roster" id="weekRoster" hidden></div>
         </div>
+        <div id="rosterDue"></div>
         <button class="btn btn--primary" id="startBtn">Start timesheet</button>
         <div id="openDrafts"></div>
       </div>
@@ -320,6 +321,19 @@
             </div>
             <div class="roster-preview" id="pRosterPreview"></div>
           </div>
+          <div id="pEnteredWrap" hidden>
+            <div class="field">
+              <label for="pRosterWeeks">I get my shifts every</label>
+              <select id="pRosterWeeks"></select>
+            </div>
+            <div class="field">
+              <label for="pRoadBaseE">Usual road base (Road shifts)</label>
+              <select id="pRoadBaseE"></select>
+            </div>
+            <p class="roster-preview" id="pEnteredStatus"></p>
+            <button type="button" class="btn" data-roster-entry>Enter my shifts</button>
+            <p class="hint">When your entered shifts run out, the app asks for the next lot before you start a timesheet. Leave you've already requested, or put in with a form, is added on top.</p>
+          </div>
         </fieldset>
 
         <fieldset class="sub leave-rules">
@@ -386,12 +400,14 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.05-6</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.05-7</span></p>
       </div>
     </section>
   </main>
 
   <!-- After publishing -->
+  <dialog id="rosterDialog" class="roster-dialog"></dialog>
+
   <dialog id="publishedDialog">
     <form method="dialog" class="dialog">
       <h3>Timesheet published</h3>
@@ -444,9 +460,10 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="form-profiles.js?v=2026.11.05-6" defer></script>
-  <script src="leave.js?v=2026.11.05-6" defer></script>
-  <script src="forms.js?v=2026.11.05-6" defer></script>
-  <script src="app.js?v=2026.11.05-6"></script>
+  <script src="form-profiles.js?v=2026.11.05-7" defer></script>
+  <script src="roster-entry.js?v=2026.11.05-7" defer></script>
+  <script src="leave.js?v=2026.11.05-7" defer></script>
+  <script src="forms.js?v=2026.11.05-7" defer></script>
+  <script src="app.js?v=2026.11.05-7"></script>
 </body>
 </html>

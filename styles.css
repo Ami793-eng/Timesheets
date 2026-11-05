@@ -621,3 +621,15 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 /* Five tabs: keep each on one line on narrow phones */
 .tab { white-space: nowrap; }
 @media (max-width: 420px) { .tabs { gap: 0; } .tab { font-size: .84rem; padding-left: .1rem; padding-right: .1rem; } }
+
+/* Entering shifts (non-rostered staff) */
+.roster-dialog { width: min(440px, calc(100vw - 24px)); }
+.re-week { border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px 10px; margin: 0 0 12px; }
+.re-week legend { font-weight: 700; font-size: .9rem; padding: 0 4px; }
+.re-day { display: grid; grid-template-columns: 5.2rem 1fr; align-items: center; gap: 4px 8px; padding: 3px 0; }
+.re-day__name { font-weight: 600; font-size: .9rem; }
+.re-day__name small { display: block; font-weight: 400; color: var(--muted); }
+.re-day select { min-height: 38px; padding: .3rem .5rem; }
+.re-day__times { grid-column: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.re-week .link-btn { margin-top: 6px; }
+.roster-due { display: grid; gap: 6px; justify-items: start; margin: 4px 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--primary-soft); border-left: 4px solid var(--primary); }
