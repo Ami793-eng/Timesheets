@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-7";
+const APP_VERSION = "2026.11.05-8";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -635,13 +635,13 @@ function renderProfile() {
 function renderRosterSettings() {
   const p = state.profile;
   const entered = p.rosterId === ENTERED_ROSTER;
+  // One list: fixed rolling rosters, then "Non-rostered" with how often shifts come (value "entered:4").
   $("pRoster").innerHTML = opt("", "No roster (fill in manually)", !p.rosterId) +
-    Object.entries(ROSTERS).map(([id, r]) => opt(id, r.name, p.rosterId === id)).join("") +
-    opt(ENTERED_ROSTER, "Non-rostered (I enter my shifts)", entered);
+    `<optgroup label="Fixed roster">${Object.entries(ROSTERS).map(([id, r]) => opt(id, r.name, p.rosterId === id)).join("")}</optgroup>` +
+    `<optgroup label="Non-rostered">${ENTRY_WEEK_CHOICES.map(n => opt(`${ENTERED_ROSTER}:${n}`, weeksLabel(n), entered && entryWeeks() === n)).join("")}</optgroup>`;
   $("pRosterWrap").hidden = !p.rosterId || entered;
   $("pEnteredWrap").hidden = !entered;
   if (entered) {
-    $("pRosterWeeks").innerHTML = ENTRY_WEEK_CHOICES.map(n => opt(String(n), weeksLabel(n), entryWeeks() === n)).join("");
     $("pRoadBaseE").innerHTML = opt("", "Ask each time", !p.roadBase) + ROAD_STATIONS.map(s => opt(s, s, p.roadBase === s)).join("");
     const to = rosterEnteredTo();
     $("pEnteredStatus").innerHTML = to ? `Shifts entered up to <strong>${esc(displayDate(to))}</strong>.` : `No shifts entered yet.`;
@@ -683,7 +683,9 @@ function onLeaveRulesChange() {
 
 function onRosterChange() {
   const p = state.profile;
-  p.rosterId = $("pRoster").value;
+  const [id, weeks] = $("pRoster").value.split(":");
+  p.rosterId = id;
+  if (id === ENTERED_ROSTER) p.rosterWeeks = Number(weeks) || 4;
   if (!p.rosterId || p.rosterId === ENTERED_ROSTER) { p.rosterAnchor = ""; p.rosterAnchorLine = 0; }
   else {
     const start = $("pRosterStart").value || mondayOf(isoLocal(new Date()));
@@ -2777,7 +2779,6 @@ function bind() {
   $("pRosterStart").addEventListener("change", onRosterChange);
   $("pRoadBase").addEventListener("change", () => { state.profile.roadBase = $("pRoadBase").value; saveState(); toast("Road base saved."); });
   $("pRoadBaseE").addEventListener("change", () => { state.profile.roadBase = $("pRoadBaseE").value; saveState(); toast("Road base saved."); });
-  $("pRosterWeeks").addEventListener("change", () => { state.profile.rosterWeeks = Number($("pRosterWeeks").value) || 4; saveState(); renderRosterSettings(); toast("Saved."); });
   ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);

@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.05-7">
+  <link rel="stylesheet" href="styles.css?v=2026.11.05-8">
 </head>
 <body>
   <header class="app-header">
@@ -300,7 +300,7 @@
           <legend>My roster</legend>
           <p class="hint">Pick your base roster and a starting week (and which line that week is). New timesheets are then filled in for you: shifts as rostered, rest days boxed off.</p>
           <div class="field">
-            <label for="pRoster">Base roster</label>
+            <label for="pRoster">Roster</label>
             <select id="pRoster"></select>
           </div>
           <div id="pRosterWrap" hidden>
@@ -322,10 +322,6 @@
             <div class="roster-preview" id="pRosterPreview"></div>
           </div>
           <div id="pEnteredWrap" hidden>
-            <div class="field">
-              <label for="pRosterWeeks">I get my shifts every</label>
-              <select id="pRosterWeeks"></select>
-            </div>
             <div class="field">
               <label for="pRoadBaseE">Usual road base (Road shifts)</label>
               <select id="pRoadBaseE"></select>
@@ -400,7 +396,7 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.05-7</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.05-8</span></p>
       </div>
     </section>
   </main>
@@ -460,10 +456,10 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="form-profiles.js?v=2026.11.05-7" defer></script>
-  <script src="roster-entry.js?v=2026.11.05-7" defer></script>
-  <script src="leave.js?v=2026.11.05-7" defer></script>
-  <script src="forms.js?v=2026.11.05-7" defer></script>
-  <script src="app.js?v=2026.11.05-7"></script>
+  <script src="form-profiles.js?v=2026.11.05-8" defer></script>
+  <script src="roster-entry.js?v=2026.11.05-8" defer></script>
+  <script src="leave.js?v=2026.11.05-8" defer></script>
+  <script src="forms.js?v=2026.11.05-8" defer></script>
+  <script src="app.js?v=2026.11.05-8"></script>
 </body>
 </html>
