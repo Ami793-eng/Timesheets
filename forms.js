@@ -548,22 +548,34 @@ function removeFormLeave(formId) {
   toast("Leave taken off your timesheets.");
 }
 
-// The email for a filled form: subject "<Name> <Leave type> <Mon YY>" (the month the leave starts,
-// or this month), e.g. "Andrew Mitchell Study Leave Dec 26".
+// The leave dates a filled form is for: from the timesheet day it was opened from, the form's leave
+// ranges (e.g. maternity), or its from / to boxes. { from, to } (ISO) or null.
+function formLeaveDates() {
+  if (fx.link?.from) return { from: fx.link.from, to: fx.link.to || fx.link.from };
+  const ranges = formLeaveRanges(fx.values, fx.open.profile) || [];
+  if (ranges.length) return { from: ranges.map(r => r.from).sort()[0], to: ranges.map(r => r.to).sort().at(-1) };
+  const prof = fx.open.profile && profileById(fx.open.profile);
+  const box = what => Object.entries(prof?.leaveFill || {}).find(([, w]) => w === what)?.[0];
+  const from = box("from") ? isoFromDisplay(fx.values[box("from")]) : "";
+  const to = box("to") ? isoFromDisplay(fx.values[box("to")]) : "";
+  return from ? { from, to: to && to >= from ? to : from } : null;
+}
+
+// The email for a filled form, e.g.
+//   Subject: Andrew Mitchell Study Leave Dec 26   (the month the leave starts, else this month)
+//   Body:    Hello / Please find HR 108(p) Study Leave application attached for 7/12/26. / Regards / <Name>
 function formEmail() {
   const p = state.profile;
   const prof = fx.open.profile && profileById(fx.open.profile);
   const type = prof ? prof.title : fx.open.name;
-  let start = fx.link?.from || formLeaveRanges(fx.values, fx.open.profile)?.[0]?.from || "";
-  if (!start && prof?.leaveFill) {
-    const box = Object.entries(prof.leaveFill).find(([, what]) => what === "from")?.[0];
-    start = box ? isoFromDisplay(fx.values[box]) : "";
-  }
-  const d = start ? parseIso(start) : new Date();
+  const dates = formLeaveDates();
+  const d = dates ? parseIso(dates.from) : new Date();
   const when = `${"Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+  const short = iso => { const x = parseIso(iso); return `${x.getDate()}/${x.getMonth() + 1}/${String(x.getFullYear()).slice(2)}`; };
+  const forDates = dates ? ` for ${short(dates.from)}${dates.to !== dates.from ? ` – ${short(dates.to)}` : ""}` : "";
   return {
     subject: `${p.name} ${type} ${when}`,
-    body: `Hello\n\nPlease see ${type} application form attached.\n\nRegards\n${p.name}`
+    body: `Hello\n\nPlease find ${prof ? profileName(prof) : fx.open.name} application attached${forDates}.\n\nRegards\n${p.name}`
   };
 }
 
