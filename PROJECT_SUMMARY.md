@@ -7,7 +7,7 @@ A single document to start a new project or session from. It covers what the app
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
 - **State at handover:** app version `2026.11.05-10`, merged to `main` and live (pull requests #1–#4).
-- **Explainer video:** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4), also on the live site at https://ami793-eng.github.io/Timesheets/media/timesheet-hub-explainer.mp4 (see section 6).
+- **Videos:** a **30-second highlight reel** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) and the **2½-minute explainer** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4), both on the live site under https://ami793-eng.github.io/Timesheets/media/ (see section 6).
 
 ---
 
@@ -45,7 +45,7 @@ Every email is written for you; you just send it.
 | **Timesheet** | `Andrew Mitchell Timesheet 15/11/2026` (+ ` AMENDED n`) | Hello <first names> / Please find timesheet attached / Kind Regards / <Name> |
 | **Leave request** | `Andrew Mitchell Annual Leave 12/12/2026` (or a date range) | Hello / I would like to request Annual Leave for the following: / each shift with times and hours / Total: 36h / note / Kind Regards / <Name> / Personnel No |
 | **Leave cancellation** | same, ending ` - CANCELLATION` | I would like to cancel my Annual Leave for the following: … |
-| **HSE form** | `Andrew Mitchell Study Leave Dec 26` (month the leave starts) | Hello / Please find Study Leave application attached for 7/12/26. / Regards / <Name> |
+| **HSE form** | `Andrew Mitchell Parental Leave Nov 26` (month the leave starts) | Hello / Please find Parental Leave application attached for 9/11/26 – 13/11/26. / Regards / <Name> |
 
 - Timesheets and forms go through the phone's **share sheet with the PDF attached**; recipients (ORM, DCM, Supervisor, Me) are copied ready to paste. Leave emails open the mail app with **To, CC, subject and body filled in**.
 - Every send is logged (Library history, filled forms, leave requests).
@@ -82,7 +82,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 | `leave.js` | Leave tab: requests and emails, timesheet pre-fill, calendar file, annual leave tracker, NASPO36 blocks and reminders |
 | `forms.js` | Forms tab: reads and fills fillable PDFs, built-in and uploaded forms, form emails, form ↔ timesheet links |
 | `form-profiles.js`, `forms/` | Setups for each HSE form (`FORM_PROFILES`), and the bundled blank PDFs |
-| `media/` | The explainer video and the script that records it |
+| `media/` | The highlight reel, the explainer video and the script that records both |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Installable app and offline support (network-first service worker) |
 | `template.xlsx` | Official NAS timesheet (*New_Timesheet_Template_2025*); filled in for Excel and PDF |
 | `lib/exceljs.min.js` | ExcelJS 4.4.0: reads and writes the template |
@@ -188,19 +188,30 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 
 ---
 
-## 6. Explainer video
+## 6. Videos
 
-- **File:** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4) (phone-size screen recording with captions, made-up person "Alex Sample"). Shareable from the live site: https://ami793-eng.github.io/Timesheets/media/timesheet-hub-explainer.mp4
+Phone-size screen recordings with captions, using a made-up person ("Alex Sample"). Both use **week blocks** of leave: a week of Parental Leave, and an annual leave week.
+
+### Highlight reel (30 seconds)
+- **File:** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) — https://ami793-eng.github.io/Timesheets/media/timesheet-hub-highlights.mp4 (31 s, about 0.6 MB).
+- **Shows:** the week pre-filled from the roster → a **week of Parental Leave** (Quick fill) → HR 108(j) opening with **09/11 – 13/11, 4 days** filled in → its **pre-written email** → the **annual leave tracker** → booking an **annual leave week** and its **pre-written email** → publishing the timesheet and its **pre-written email**.
+
+### Full explainer (2½ minutes)
+- **File:** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4) — https://ami793-eng.github.io/Timesheets/media/timesheet-hub-explainer.mp4 (2 min 27 s, about 1.6 MB).
 - **What it shows, in order:**
   1. Setting the roster once, and a new timesheet arriving **pre-filled from the roster**.
-  2. A Study Leave day offering **"Fill in the form"**, the HR 108(p) form opening with the **dates already filled in**, and its **pre-written email**.
+  2. A **week of Parental Leave** with Quick fill; the leave offering **"Fill in the form"**; HR 108(j) opening with the **dates and days already filled in**; its **pre-written email**; the timesheet showing the form is done.
   3. Saving a **Maternity Leave form** putting the leave **onto the timesheets**.
   4. The **annual leave tracker**: entitlement, hours left, the Summer / Autumn / Spring blocks and the "Book your … leave" reminder.
-  5. **Booking leave**: shifts and hours worked out, the **pre-written email** to workforce planning, and the leave appearing on the timesheet.
+  5. **Booking an annual leave week** (Fri–Thu): shifts and hours worked out, the **pre-written email** to workforce planning, and the leave appearing on that week's timesheet.
   6. **Non-rostered** staff entering their shifts by station.
   7. Publishing the timesheet and its **pre-written email**.
-- **Length / size:** 2 min 28 s, 540 × 1168, about 1.5 MB.
-- **Re-record** after big UI changes with `media/record-explainer.js` (Playwright drives the app at phone size with a fixed date of 9 Nov 2026 and caption overlays): run `python3 -m http.server 8123` in the repo, then `node media/record-explainer.js <output folder>`, then convert the `.webm` with `ffmpeg -i in.webm -vf scale=540:-2 -c:v libx264 -pix_fmt yuv420p -crf 27 -movflags +faststart -an media/timesheet-hub-explainer.mp4`.
+
+### Re-recording
+After big UI changes, use `media/record-explainer.js` (Playwright drives the app at phone size, with a fixed date of 9 Nov 2026 and caption overlays):
+1. In the repo: `python3 -m http.server 8123`
+2. Full explainer: `node media/record-explainer.js <output folder>`, then `ffmpeg -i in.webm -vf scale=540:-2 -c:v libx264 -pix_fmt yuv420p -crf 27 -movflags +faststart -an media/timesheet-hub-explainer.mp4`
+3. Highlight reel: `node media/record-explainer.js <output folder> --short`, then `ffmpeg -i in.webm -vf "setpts=PTS/1.55,scale=540:-2" -r 30 -c:v libx264 -pix_fmt yuv420p -crf 27 -movflags +faststart -an media/timesheet-hub-highlights.mp4`
 
 ---
 

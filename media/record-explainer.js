@@ -1,6 +1,11 @@
 // Records the Timesheet Hub explainer: drives the app at phone size with caption overlays.
+//   node media/record-explainer.js <output folder>            → the full explainer (~2½ min)
+//   node media/record-explainer.js <output folder> --short    → the 30-second highlight reel
+//                                                                (convert it with setpts=PTS/1.35 to play at 1.35×)
+// (serve the repo first: python3 -m http.server 8123)
 const { chromium } = require("playwright");
 const OUT = process.argv[2];
+const SHORT = process.argv.includes("--short");
 const BASE = "http://localhost:8123/index.html";
 
 const OVERLAY = () => {
@@ -62,8 +67,9 @@ const OVERLAY = () => {
   await page.goto(BASE);
   await page.evaluate(OVERLAY);
   await page.evaluate(() => { window.openMail = m => { window.__lastMail = m; }; });   // the leave email is shown as a card instead
-  const wait = ms => page.waitForTimeout(ms);
-  const say = (t, sub = "") => page.evaluate(([t, s]) => window.__ov.cap(t, s), [t, sub]);
+  const P = SHORT ? 0.5 : 1;                                   // pace: the highlight reel moves twice as fast
+  const wait = ms => page.waitForTimeout(Math.round(ms * P));
+  const say = (t, sub = "") => page.evaluate(([t, s]) => window.__ov.cap(t, s), [t, SHORT ? "" : sub]);
   const raise = () => page.evaluate(() => window.__ov.raise());
   const show = async sel => { await page.locator(sel).first().evaluate(el => el.scrollIntoView({ behavior: "smooth", block: "center" })); await wait(700); };
   const tap = async (sel, opts = {}) => {
@@ -73,133 +79,153 @@ const OVERLAY = () => {
     if (b) await page.evaluate(([x, y]) => window.__ov.tap(x, y), [b.x + b.width / 2, b.y + b.height / 2]);
     await wait(450); await el.click(opts); await wait(350);
   };
-  const pick = async (sel, value) => { await tap(sel, { trial: true }).catch(() => {}); await page.selectOption(sel, value); await wait(500); };
+  const pick = async (sel, value) => { await page.selectOption(sel, value); await wait(500); };
+  const mailCard = async (m, title) => { await page.evaluate(([m, t]) => window.__ov.mail({ ...m, title: t }), [m, title]); await raise(); };
 
   // 0. Title
-  await page.evaluate(() => window.__ov.card(`<h1>Timesheet Hub</h1><p>Weekly timesheets, leave and HSE forms — on your phone</p><span class="ov-badge">For NAS staff · works offline</span>`));
-  await wait(3800);
+  await page.evaluate(short => window.__ov.card(short
+    ? `<h1>Timesheet Hub</h1><p>Your timesheet, leave and HSE forms — done in minutes</p>`
+    : `<h1>Timesheet Hub</h1><p>Weekly timesheets, leave and HSE forms — on your phone</p><span class="ov-badge">For NAS staff · works offline</span>`), SHORT);
+  await wait(SHORT ? 4400 : 3800);
   await page.evaluate(() => window.__ov.card(""));
 
-  // 1. Roster once
-  await tap('[data-tab="profile"]');
-  await show("#pRoster");
-  await say("Set your roster once in My details", "Fixed roster and line — or Non-rostered and enter your own shifts");
-  await wait(3800);
+  // 1. Roster once (full only)
+  if (!SHORT) {
+    await tap('[data-tab="profile"]');
+    await show("#pRoster");
+    await say("Set your roster once in My details", "Fixed roster and line — or Non-rostered and enter your own shifts");
+    await wait(3800);
+    await tap('[data-tab="timesheet"]');
+    await say("Start a week…", "It already knows your roster for that week");
+    await show("#weekRoster"); await wait(2600);
+  }
 
   // 2. Pre-filled timesheet
-  await tap('[data-tab="timesheet"]');
-  await say("Start a week…", "It already knows your roster for that week");
-  await show("#weekRoster"); await wait(2600);
   await tap("#startBtn");
-  await say("…and it's filled in from your roster", "Shifts in, rest days ready to confirm with one tap");
+  await say(SHORT ? "Your week, filled in from your roster" : "…and it's filled in from your roster", "Shifts in, rest days ready to confirm with one tap");
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" })); await wait(1500);
-  await show('[data-day-card="4"]'); await wait(2200);
+  await show('[data-day-card="2"]'); await wait(2200);
 
-  // 3. Leave day → form with dates
-  await say("Thursday was Study Leave", "Pick it under Actual");
-  await page.evaluate(() => { ui.expanded.clear(); ui.expanded.add(3); renderTimesheet(); });
-  await show('[data-day-card="3"] select[data-f="actual"]');
-  await pick('[data-day-card="3"] select[data-f="actual"]', "leave:Study Leave");
-  await show('[data-day-card="3"] .leave-form');
-  await say("The day offers the right HSE form", "HR 108(p) Study Leave"); await wait(2800);
-  await tap('[data-day-card="3"] [data-leave-form]');
+  // 3. A week of Parental Leave → its form, with the dates
+  await say("A week of Parental Leave?", "Quick fill: tap the week's shifts, choose Parental Leave");
+  await page.evaluate(() => { $("quickFill").open = true; window.scrollTo({ top: 0, behavior: "smooth" }); });
+  await show("#dayChips");
+  for (const i of [0, 2, 3, 4]) await tap(`#dayChips [data-chip="${i}"]`);
+  await pick("#qShift", "keep");
+  await pick("#qActual", "leave:Parental Leave");
+  await tap("#applyBtn");
+  await page.evaluate(() => { ui.expanded.clear(); ui.expanded.add(0); renderTimesheet(); });
+  await show('[data-day-card="0"] .leave-form');
+  await say("The leave offers the right HSE form", "HR 108(j) Parental Leave · 09/11 – 13/11 · 4 days"); await wait(3000);
+  await tap('[data-day-card="0"] [data-leave-form]');
   await page.waitForSelector("#formEditor:not([hidden])");
-  await say("It opens with your details and the leave dates filled in", "Name, personnel no, PPS — and 12/11/2026, 1 day"); await wait(1200);
-  await show('#formEditor [data-ff="From Date"]'); await wait(3200);
+  await say(SHORT ? "Opens with your details and the leave dates in" : "It opens with your details and the leave dates filled in",
+    "Name, personnel no, PPS — and 09/11 to 13/11/2026, 4 days"); await wait(1200);
+  await show('#formEditor [data-ff="Textfield-4"]'); await wait(SHORT ? 3600 : 3400);
   await tap("#formEditor [data-form-make]");
   await page.waitForFunction(() => !!fx.file);
   await show("#formOut");
-  await say("Signed and ready — with a pre-written email"); await wait(900);
-  const fm = await page.evaluate(() => formEmail());
-  await page.evaluate(m => window.__ov.mail({ ...m, title: "Form email", to: "pat.murphy@example.ie" }), fm); await raise();
-  await wait(4800);
+  await say("Signed — with a pre-written email"); await wait(700);
+  await mailCard({ ...(await page.evaluate(() => formEmail())), to: "pat.murphy@example.ie" }, "Form email");
+  await wait(SHORT ? 8400 : 4800);
   await page.evaluate(() => window.__ov.mail(null));
-  await tap('[data-tab="timesheet"]');
-  await show('[data-day-card="3"] .leave-form');
-  await say("Back on the timesheet, the day shows the form is done"); await wait(3200);
+  if (!SHORT) {
+    await tap('[data-tab="timesheet"]');
+    await show('[data-day-card="0"] .leave-form');
+    await say("Back on the timesheet, the leave shows the form is done"); await wait(3200);
+  }
 
-  // 4. Maternity form → timesheets
-  await tap('[data-tab="forms"]');
-  await say("18 official HSE forms are built in", "Each set up box by box"); await show("#builtinForms"); await wait(3000);
-  await tap('[data-form-fill="builtin:hr108i"]');
-  await page.waitForSelector("#formEditor:not([hidden])");
-  await say("Save a Maternity or Parental Leave form…");
-  await show('#formEditor [data-ff="Maternity Leave-7"]');
-  await page.fill('#formEditor [data-ff="Maternity Leave-7"]', "01/03/2027"); await wait(600);
-  await page.fill('#formEditor [data-ff="Maternity Leave-13"]', "29/08/2027"); await wait(1400);
-  await tap("#formEditor [data-form-make]");
-  await page.waitForFunction(() => !!fx.file);
-  await show("#formLeave");
-  await say("…and the dates go onto your timesheets", "Every rostered shift from 01/03/2027 marked as Maternity Leave"); await wait(4200);
+  // 4. Maternity form → timesheets (full only)
+  if (!SHORT) {
+    await tap('[data-tab="forms"]');
+    await say("18 official HSE forms are built in", "Each set up box by box"); await show("#builtinForms"); await wait(3000);
+    await tap('[data-form-fill="builtin:hr108i"]');
+    await page.waitForSelector("#formEditor:not([hidden])");
+    await say("Save a Maternity Leave form…");
+    await show('#formEditor [data-ff="Maternity Leave-7"]');
+    await page.fill('#formEditor [data-ff="Maternity Leave-7"]', "01/03/2027"); await wait(600);
+    await page.fill('#formEditor [data-ff="Maternity Leave-13"]', "29/08/2027"); await wait(1400);
+    await tap("#formEditor [data-form-make]");
+    await page.waitForFunction(() => !!fx.file);
+    await show("#formLeave");
+    await say("…and the dates go onto your timesheets", "Every rostered shift from 01/03/2027 marked as Maternity Leave"); await wait(4200);
+  }
 
   // 5. Leave tracker
   await tap('[data-tab="leave"]');
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-  await say("The annual leave tracker", "NAS policy NASPO36: 179.4h + 78h bank holidays, leave year April–March"); await wait(4000);
-  await show("#leaveSummary .lv-stats");
-  await say("Taken, booked and left — at a glance"); await wait(2800);
-  await show("#leaveBlocks");
-  await say("Structured leave blocks: Summer, Autumn, Spring", "Any 7 days in a row counts as a block week"); await wait(3800);
-  await show("#leaveReminder");
-  await say("It reminds you when a block is due", "Spring applications are open until 30/11"); await wait(3000);
+  await say(SHORT ? "Annual leave tracker" : "The annual leave tracker", "NAS policy NASPO36: 179.4h + 78h bank holidays, leave year April–March"); await wait(SHORT ? 4400 : 4000);
+  if (!SHORT) {
+    await show("#leaveSummary .lv-stats");
+    await say("Taken, booked and left — at a glance"); await wait(2800);
+    await show("#leaveBlocks");
+    await say("Structured leave blocks: Summer, Autumn, Spring", "Any 7 days in a row counts as a block week"); await wait(3800);
+    await show("#leaveReminder");
+    await say("It reminds you when a block is due", "Spring applications are open until 30/11"); await wait(3000);
+  }
 
-  // 6. Book leave
+  // 6. Book an annual leave block
   await tap("#leaveReminder [data-lv-block]");
   await page.fill("#lvFrom", "2027-01-08"); await page.dispatchEvent("#lvFrom", "change"); await wait(500);
   await page.fill("#lvToDate", "2027-01-14"); await page.dispatchEvent("#lvToDate", "change"); await wait(600);
   await show("#leaveEditor .lv-shifts");
-  await say("Book leave: your shifts and hours are worked out", "Fri 08/01 – Thu 14/01 · a full Spring week"); await wait(4200);
+  await say(SHORT ? "Book an annual leave week" : "Book a week of annual leave: shifts and hours worked out", "Fri 08/01 – Thu 14/01 · a full Spring block week"); await wait(SHORT ? 4000 : 4200);
   await tap("[data-lv-send]");
-  const lm = await page.evaluate(() => window.__lastMail);
-  await page.evaluate(m => window.__ov.mail({ ...m, title: "Leave request" }), lm);
-  await say("One tap: a pre-written email to workforce planning"); await wait(5500);
+  await mailCard(await page.evaluate(() => window.__lastMail), "Leave request");
+  await say(SHORT ? "Pre-written email to workforce planning" : "One tap: a pre-written email to workforce planning"); await wait(SHORT ? 9000 : 5500);
   await page.evaluate(() => window.__ov.mail(null));
-  await show("#leaveList .lv-item");
-  await say("Tracked here: approve, cancel or add it to your calendar"); await wait(3200);
+  if (!SHORT) {
+    await show("#leaveList .lv-item");
+    await say("Tracked here: approve, cancel or add it to your calendar"); await wait(3200);
+  }
+  if (!SHORT) {
   await tap('[data-tab="timesheet"]');
   await page.evaluate(() => { state.currentId = null; renderTimesheet(); });
   await page.fill("#weekEnding", "2027-01-10"); await page.dispatchEvent("#weekEnding", "change");
   await tap("#startBtn");
-  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-  await say("…and it's already on the timesheet for that week", "Friday 08/01: Annual Leave, requested by email"); await wait(800);
+  await say(SHORT ? "…and it's on your timesheet" : "…and it's already on the timesheet for that week", "Friday 08/01: Annual Leave, requested by email"); await wait(800);
   await page.evaluate(() => { ui.expanded.clear(); ui.expanded.add(4); renderTimesheet(); });
   await show('[data-day-card="4"] .leave-form'); await wait(3800);
+  }
 
-  // 7. Non-rostered
-  await tap('[data-tab="profile"]');
-  await show("#pRoster");
-  await say("Non-rostered? Choose 1, 2, 4 or 8 weeks…"); await wait(1500);
-  await page.selectOption("#pRoster", "entered:4"); await wait(1200);
-  await tap("#pEnteredWrap [data-roster-entry]");
-  await page.waitForSelector("#rosterDialog[open]"); await raise();
-  await say("…and enter your shifts when they come", "Station first, then that station's own shifts");
-  await pick('[data-re-station="2026-11-09"]', "Sligo"); await raise();
-  await pick('[data-re-shift="2026-11-09"]', "shift:21:00"); await raise();
-  await pick('[data-re-shift="2026-11-10"]', "R"); await raise();
-  await pick('[data-re-station="2026-11-11"]', "Manorhamilton"); await raise();
-  await pick('[data-re-shift="2026-11-11"]', "shift:08:00"); await raise();
-  await wait(2600);
-  await page.evaluate(() => { $("rosterDialog").close(); Object.assign(state.profile, { rosterId: "neoc-a", rosterAnchor: "2026-11-09", rosterAnchorLine: 7 }); saveState(); renderRosterSettings(); });
+  // 7. Non-rostered (full only)
+  if (!SHORT) {
+    await tap('[data-tab="profile"]');
+    await show("#pRoster");
+    await say("Non-rostered? Choose 1, 2, 4 or 8 weeks…"); await wait(1500);
+    await page.selectOption("#pRoster", "entered:4"); await wait(1200);
+    await tap("#pEnteredWrap [data-roster-entry]");
+    await page.waitForSelector("#rosterDialog[open]"); await raise();
+    await say("…and enter your shifts when they come", "Station first, then that station's own shifts");
+    await pick('[data-re-station="2026-11-09"]', "Sligo"); await raise();
+    await pick('[data-re-shift="2026-11-09"]', "shift:21:00"); await raise();
+    await pick('[data-re-shift="2026-11-10"]', "R"); await raise();
+    await pick('[data-re-station="2026-11-11"]', "Manorhamilton"); await raise();
+    await pick('[data-re-shift="2026-11-11"]', "shift:08:00"); await raise();
+    await wait(2600);
+    await page.evaluate(() => { $("rosterDialog").close(); Object.assign(state.profile, { rosterId: "neoc-a", rosterAnchor: "2026-11-09", rosterAnchorLine: 7 }); saveState(); renderRosterSettings(); });
+  }
 
   // 8. Publish + email
   await tap('[data-tab="timesheet"]');
   await page.evaluate(() => { const s = state.sheets.find(x => x.weekEnding === "2026-11-15"); state.currentId = s.id; ui.expanded.clear(); renderTimesheet(); });
-  await say("When the week's done: Review & publish");
+  await say(SHORT ? "Publish your timesheet…" : "When the week's done: Review & publish");
   await tap("#barPublish"); await wait(800);
   await page.check("#declaration"); await wait(600);
   await tap("#publishBtn");
   await page.waitForSelector("#publishedDialog[open]"); await raise();
-  await say("A locked PDF of the official NAS timesheet"); await wait(2600);
-  await tap('#publishedDialog button[value="email"]');
+  await say("A locked PDF of the official NAS timesheet"); await wait(SHORT ? 3000 : 2600);
+  if (SHORT) await page.evaluate(() => { $("publishedDialog").close("email"); });
+  else await tap('#publishedDialog button[value="email"]');
   await page.waitForSelector("#sendDialog[open]"); await raise();
   await say("…and its pre-written email to your manager", "Attached through your phone's share sheet"); await wait(1200);
-  await show("#sendDialog .email-preview"); await raise(); await wait(4800);
+  await show("#sendDialog .email-preview"); await raise(); await wait(SHORT ? 8000 : 4800);
   await page.evaluate(() => $("sendDialog").close());
 
   // 9. End
   await say("");
   await page.evaluate(() => window.__ov.card(`<h1>Timesheet Hub</h1><p>Roster-filled timesheets · leave tracker &amp; booker · HSE forms linked to your dates · pre-written emails</p><span class="ov-badge">ami793-eng.github.io/Timesheets</span>`));
-  await wait(4200);
+  await wait(SHORT ? 6000 : 4200);
   const v = page.video();
   await ctx.close(); await browser.close();
   console.log("video:", await v.path());
