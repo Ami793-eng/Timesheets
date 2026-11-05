@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-10";
+const APP_VERSION = "2026.11.05-11";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -67,6 +67,7 @@ const STATION_SHIFTS = {
 const LEAVE_TYPES = [
   "Annual Leave",
   "Parental Leave",
+  "Parent's Leave",
   "Self-Certified Sick Leave",
   "Certified Sick Leave",
   "Force Majeure",
@@ -1197,6 +1198,11 @@ function dayLeaveType(d) {
 function leaveFormProfile(type) {
   return (type && typeof FORM_PROFILES !== "undefined" && FORM_PROFILES.find(p => p.leaveType === type && p.file)) || null;
 }
+// A week block (e.g. Parent's Leave): the form takes the whole 7 days from the first leave day.
+function weekBlock(run) {
+  const end = parseIso(run.from); end.setDate(end.getDate() + 6);
+  return { ...run, to: isoLocal(end) };
+}
 // The stretch of this week taken as the same leave around day i. Rest days in between don't break it.
 function leaveRun(sheet, i) {
   const type = dayLeaveType(sheet.days[i]);
@@ -1236,7 +1242,7 @@ function leaveFormRow(d, i) {
   }
   const p = sheet && leaveFormProfile(dayLeaveType(d));
   if (!p) return "";
-  const run = leaveRun(sheet, i);
+  const run = p.leaveWeek ? weekBlock(leaveRun(sheet, i)) : leaveRun(sheet, i);
   const rec = linkedLeaveForm(sheet, run);
   const sent = rec?.sends?.length ? new Date(rec.sends.at(-1)) : null;
   const span = run.from === run.to ? shortDate(run.from) : `${shortDate(run.from)} – ${shortDate(run.to)}`;
@@ -1244,7 +1250,7 @@ function leaveFormRow(d, i) {
     <div class="leave-form">
       <div class="leave-form__text">
         <strong>${esc(p.code)} ${esc(p.title)} form</strong>
-        <span class="muted">${span} · ${run.days} day${run.days === 1 ? "" : "s"}</span>
+        <span class="muted">${span} · ${p.leaveWeek ? "week block" : `${run.days} day${run.days === 1 ? "" : "s"}`}</span>
         ${rec ? `<span class="chip2 chip-leave">${sent ? `Sent ${esc(sent.toLocaleDateString("en-IE", { day: "2-digit", month: "2-digit" }))}` : "Filled in"}</span>` : ""}
       </div>
       <button type="button" class="btn btn--small" data-leave-form="${i}">${rec ? "Open form" : "Fill in the form"}</button>

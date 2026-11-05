@@ -21,6 +21,7 @@
  *                          8 one-character squares: { id, label, parts: [...] }
  *   leaveRanges(v, on)   — leave dates in the filled form, put on the timesheets: returns
  *                          [{ type, from, to }]; v(box) reads a box, on(group) a ticked section
+ *   leaveWeek            — the leave is taken in week blocks: the form gets the whole 7 days
  *   leaveType, leaveFill — the timesheet leave type this form is for, and which
  *                          boxes take the leave's from / to dates and number of days
  *   signatures           — where to draw the employee signature when the form
@@ -583,6 +584,12 @@ const FORM_PROFILES = [
     id: "hr108t", code: "HR 108(t)", title: "Parent's Leave",
     file: "forms/hr_108t_employee_application_form_for_parents_leave_V3.pdf", url: HSE + "4508/hr_108t_employee_application_form_for_parents_leave_V3.pdf",
     match: (n, t) => titled(t, /108\s*t\b|parents leave/i) || has(n, "Employee Sig Date", "week one date"),
+    // Parent's Leave is taken in week blocks: a leave day on the timesheet fills Week one with the whole week,
+    // and each week on the form goes onto the timesheets.
+    leaveType: "Parent's Leave", leaveWeek: true, leaveFill: { "week one date": "from", "week one to": "to" },
+    leaveRanges: v => [["week one date", "week one to"], ["week two date", "week two to"], ["week three date", "week three to"],
+      ["week four date", "week four to"], ["week five date", "week five to"], ["week Six date", "week Six to"],
+      ["week Seven date", "week Seven to"], ["week8", "week8f"], ["Teweek9t", "week9f"]].map(([f, t]) => ({ type: "Parent's Leave", from: v(f), to: v(t) })),
     fields: {
       ...head({ surname: "SURNAME", first: "FIRST NAME", grade: "grade", number: "personnel No", base: "Location", ppsMain: "pps.no", today: "Employee Sig Date" }),
       "date of childs birth":   { label: "Expected date of birth, or date of birth", date: true },

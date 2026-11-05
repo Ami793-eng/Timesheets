@@ -106,22 +106,22 @@ const OVERLAY = () => {
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" })); await wait(1500);
   await show('[data-day-card="2"]'); await wait(2200);
 
-  // 3. A week of Parental Leave → its form, with the dates
-  await say("A week of Parental Leave?", "Quick fill: tap the week's shifts, choose Parental Leave");
+  // 3. A week of Parent's Leave (taken in week blocks) → its form, with the week filled in
+  await say("A week of Parent's Leave?", "Quick fill: tap the week's shifts, choose Parent's Leave");
   await page.evaluate(() => { $("quickFill").open = true; window.scrollTo({ top: 0, behavior: "smooth" }); });
   await show("#dayChips");
   for (const i of [0, 2, 3, 4]) await tap(`#dayChips [data-chip="${i}"]`);
   await pick("#qShift", "keep");
-  await pick("#qActual", "leave:Parental Leave");
+  await pick("#qActual", "leave:Parent's Leave");
   await tap("#applyBtn");
   await page.evaluate(() => { ui.expanded.clear(); ui.expanded.add(0); renderTimesheet(); });
   await show('[data-day-card="0"] .leave-form');
-  await say("The leave offers the right HSE form", "HR 108(j) Parental Leave · 09/11 – 13/11 · 4 days"); await wait(3000);
+  await say("The leave offers the right HSE form", "HR 108(t) Parent's Leave · week block 09/11 – 15/11"); await wait(3000);
   await tap('[data-day-card="0"] [data-leave-form]');
   await page.waitForSelector("#formEditor:not([hidden])");
   await say(SHORT ? "Opens with your details and the leave dates in" : "It opens with your details and the leave dates filled in",
-    "Name, personnel no, PPS — and 09/11 to 13/11/2026, 4 days"); await wait(1200);
-  await show('#formEditor [data-ff="Textfield-4"]'); await wait(SHORT ? 3600 : 3400);
+    "Name, personnel no, PPS — and Week one: 09/11 to 15/11/2026"); await wait(1200);
+  await show('#formEditor [data-ff="week one date"]'); await wait(SHORT ? 3600 : 3400);
   await tap("#formEditor [data-form-make]");
   await page.waitForFunction(() => !!fx.file);
   await show("#formOut");
