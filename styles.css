@@ -110,8 +110,8 @@ a { color: var(--primary); }
 .field { margin-bottom: 12px; min-width: 0; }
 .field > label, .label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
 .label--sub { font-weight: 500; margin-top: .6rem; color: var(--muted); }
-input[type="text"], input[type="email"], input[type="search"], input[type="number"],
-input[type="date"], input[type="time"], select {
+input[type="text"], input[type="email"], input[type="search"], input[type="number"], input[type="tel"],
+input[type="date"], input[type="time"], select, textarea {
   width: 100%; min-height: 44px;
   padding: .55rem .65rem;
   font: inherit; color: var(--text);
@@ -119,7 +119,8 @@ input[type="date"], input[type="time"], select {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-input:focus, select:focus, button:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus); border-color: var(--primary); }
+textarea { display: block; resize: vertical; line-height: 1.4; }
+input:focus, select:focus, textarea:focus, button:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus); border-color: var(--primary); }
 input.needs { border-color: var(--danger); background: var(--warn-soft); }
 .req { font-weight: 500; font-size: .75rem; color: var(--danger); margin-left: .3rem; }
 
@@ -615,7 +616,6 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .form-opt { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
 .form-opt summary { color: var(--primary); }
 .field--wide { grid-column: 1 / -1; }
-.field--wide textarea { width: 100%; font: inherit; padding: .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .form-out { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .tab { font-size: .95rem; padding-left: .2rem; padding-right: .2rem; }
 /* Five tabs: keep each on one line on narrow phones */
