@@ -2,8 +2,10 @@
  * For non-rostered staff who get their shifts 1, 2, 4 or 8 weeks at a time instead of a fixed
  * rolling roster (My details → My roster → "Non-rostered (I enter my shifts)", then how often).
  *
- * The days entered are kept in state.profile.rosterDays: { "YYYY-MM-DD": { code, from, to } }
- * with code D (day), N (night), X (road), O (other times) or R (rest). rosterWeek() in app.js reads
+ * The days entered are kept in state.profile.rosterDays: { "YYYY-MM-DD": { code, from, to, station } }
+ * with code D (day), N (night), X (road), O (other times), R (rest) or L (leave already booked, e.g.
+ * annual leave requested before the shifts were known: a fixed day, no station needed).
+ * Non-rostered staff have no normal base, so every shift has its own station. rosterWeek() in app.js reads
  * them like a fixed roster line, so new timesheets fill in from them — and leave already requested
  * or put in through a form (leave periods) is applied on top as usual.
  */
@@ -15,9 +17,9 @@ const entryWeeks = () => ENTRY_WEEK_CHOICES.includes(Number(state.profile.roster
 const weeksLabel = n => `${n} week${n === 1 ? "" : "s"}`;
 const re = { start: "", draft: {}, then: null };     // the dialog's working copy
 
-// Day / night times follow the base's usual starts (e.g. 08:00 / 20:00 at Manorhamilton), else 07:00 / 19:00.
-function enteredShiftTimes() {
-  const starts = STATION_SHIFTS[state.profile.base] || ["07:00", "19:00"];
+// Day / night times follow the station's usual starts (e.g. 08:00 / 20:00 at Manorhamilton), else 07:00 / 19:00.
+function enteredShiftTimes(station = "") {
+  const starts = STATION_SHIFTS[station] || ["07:00", "19:00"];
   const plus12 = t => { const [h, m] = t.split(":").map(Number); return `${String((h + 12) % 24).padStart(2, "0")}:${String(m).padStart(2, "0")}`; };
   return { D: [starts[0], plus12(starts[0])], N: [starts[1] || "19:00", plus12(starts[1] || "19:00")], X: ["07:00", "19:00"] };
 }
@@ -33,10 +35,17 @@ function enteredRosterWeek(weekEndingIso) {
   if (days.some(x => !x)) return null;
   return {
     line: 0, entered: true,
-    roster: { name: "My entered roster", station: state.profile.base || "" },
+    roster: { name: "My entered roster", station: "" },
     codes: days.map(x => x.code),
-    shifts: days.map(x => x.code === "R" ? { label: "Rest Day" } : { label: x.code === "O" ? "Shift" : ROSTER_SHIFTS[x.code].label, start: x.from, finish: x.to })
+    stations: days.map(x => x.station || ""),
+    shifts: days.map(x => x.code === "R" ? { label: "Rest Day" } : x.code === "L" ? { label: x.leave, leave: x.leave }
+      : { label: x.code === "O" ? "Shift" : ROSTER_SHIFTS[x.code].label, start: x.from, finish: x.to })
   };
+}
+// Leave already booked as fixed days (requested before the shifts were known) — those days are leave, whatever comes.
+function bookedLeaveOn(dateIso) {
+  const p = leavePeriodOn(dateIso);
+  return p && p.days ? p : null;
 }
 
 /* ---------- prompts ---------- */
@@ -70,6 +79,7 @@ function openRosterEntry(startMonday = "", then = null) {
   re.then = then;
   re.draft = {};
   for (const d of entryDates()) if (rosterDays()[d]) re.draft[d] = { ...rosterDays()[d] };
+  markBookedLeave();
   renderRosterEntry();
   $("rosterDialog").showModal();
 }
@@ -78,7 +88,6 @@ function entryDates() {
 }
 
 function renderRosterEntry() {
-  const times = enteredShiftTimes();
   const dates = entryDates();
   const weeks = Array.from({ length: entryWeeks() }, (_, w) => dates.slice(w * 7, w * 7 + 7));
   $("rosterDialog").innerHTML = `
@@ -88,18 +97,26 @@ function renderRosterEntry() {
         <label for="reStart">Starting Monday</label>
         <input type="date" id="reStart" value="${esc(re.start)}">
       </div>
-      <p class="hint">Day ${times.D[0]}–${times.D[1]} · Night ${times.N[0]}–${times.N[1]} · Road ${times.X[0]}–${times.X[1]}. Choose <strong>Other times</strong> for anything else. Leave you've already requested is added on top.</p>
+      <p class="hint">Pick the shift and the station for each day. Day and Night follow the station's usual times (07:00 / 19:00, or 08:00 / 20:00 at Manorhamilton and Carrick on Shannon); choose <strong>Other times</strong> for anything else. Leave you've already booked is filled in.</p>
       ${weeks.map((wk, w) => `
       <fieldset class="re-week">
         <legend>Week ${w + 1} · ${shortDate(wk[0])} – ${shortDate(wk[6])}</legend>
+        <div class="re-all"><label>All shifts this week at</label><select data-re-allst="${w}">${opt("", "—", true)}${STATIONS.map(s => opt(s, s, false)).join("")}</select></div>
         ${wk.map((d, i) => {
           const v = re.draft[d] || { code: "" };
+          if (v.code === "L") return `<div class="re-day re-day--leave"><span class="re-day__name">${DAYS[i].short} <small>${shortDate(d)}</small></span><span>${esc(v.leave)} <small class="muted">booked</small></span></div>`;
+          const working = v.code && v.code !== "R";
+          const stations = v.code === "X" ? ROAD_STATIONS : STATIONS;
           return `<div class="re-day">
             <span class="re-day__name">${DAYS[i].short} <small>${shortDate(d)}</small></span>
-            <select data-re-code="${d}" class="${v.code ? "" : "needs"}" aria-label="${DAYS[i].name} ${displayDate(d)}">${opt("", "—", !v.code)}${ENTRY_CODES.map(([c, l]) => opt(c, l, v.code === c)).join("")}</select>
+            <span class="re-day__pick">
+              <select data-re-code="${d}" class="${v.code ? "" : "needs"}" aria-label="${DAYS[i].name} ${displayDate(d)} shift">${opt("", "—", !v.code)}${ENTRY_CODES.map(([c, l]) => opt(c, l, v.code === c)).join("")}</select>
+              ${working ? `<select data-re-station="${d}" class="${v.station ? "" : "needs"}" aria-label="Station">${opt("", "Station…", !v.station)}${stations.map(s => opt(s, s, v.station === s)).join("")}</select>` : ""}
+            </span>
             ${v.code === "O" ? `<span class="re-day__times">
               <select class="time-select" data-re-from="${d}" aria-label="From">${timeOptions(v.from)}</select>
-              <select class="time-select" data-re-to="${d}" aria-label="To">${timeOptions(v.to)}</select></span>` : ""}
+              <select class="time-select" data-re-to="${d}" aria-label="To">${timeOptions(v.to)}</select></span>`
+              : working && v.from ? `<span class="re-day__times muted">${esc(v.from)}–${esc(v.to)}</span>` : ""}
           </div>`;
         }).join("")}
         ${w ? `<button type="button" class="link-btn" data-re-copy="${w}">Same as week ${w}</button>` : ""}
@@ -115,14 +132,24 @@ function renderRosterEntry() {
 }
 function updateMissing() {
   const missing = entryDates().filter(d => !re.draft[d]?.code).length;
-  $("reMissing").textContent = missing ? `${missing} day${missing === 1 ? "" : "s"} still to set. Days left blank aren't saved.` : "";
+  const noStation = entryDates().filter(d => { const v = re.draft[d]; return v && !["R", "L"].includes(v.code) && !v.station; }).length;
+  $("reMissing").textContent = [missing ? `${missing} day${missing === 1 ? "" : "s"} still to set (days left blank aren't saved).` : "",
+    noStation ? `${noStation} shift${noStation === 1 ? "" : "s"} still need a station.` : ""].filter(Boolean).join(" ");
 }
 
-function setDraftCode(d, code) {
-  const times = enteredShiftTimes();
+function setDraftCode(d, code, station) {
   if (!code) { delete re.draft[d]; return; }
   const prev = re.draft[d] || {};
-  re.draft[d] = code === "R" ? { code } : code === "O" ? { code, from: prev.from || times.D[0], to: prev.to || times.D[1] } : { code, from: times[code][0], to: times[code][1] };
+  if (station === undefined) station = prev.station || "";
+  if (code === "X" && !ROAD_STATIONS.includes(station)) station = "";
+  const times = enteredShiftTimes(station);
+  re.draft[d] = code === "R" ? { code }
+    : code === "O" ? { code, station, from: prev.code === "O" ? prev.from : times.D[0], to: prev.code === "O" ? prev.to : times.D[1] }
+    : { code, station, from: times[code][0], to: times[code][1] };
+}
+// Booked leave days are filled in and fixed.
+function markBookedLeave() {
+  for (const d of entryDates()) { const p = bookedLeaveOn(d); if (p) re.draft[d] = { code: "L", leave: p.type }; }
 }
 
 function saveRosterEntry() {
@@ -131,14 +158,14 @@ function saveRosterEntry() {
   if (!dates.length) return toast("Set at least one day.", true);
   const bad = dates.find(d => re.draft[d].code === "O" && !(isTime(re.draft[d].from) && isTime(re.draft[d].to)));
   if (bad) return toast(`Set the times for ${displayDate(bad)}.`, true);
+  const noSt = dates.find(d => !["R", "L"].includes(re.draft[d].code) && !re.draft[d].station);
+  if (noSt) return toast(`Pick the station for ${DAYS[dayIndex(noSt)].name} ${displayDate(noSt)}.`, true);
   for (const d of dates) days[d] = { ...re.draft[d] };
   // Draft timesheets for these weeks that are still blank fill in now (leave on top).
   let filled = 0;
   for (const s of state.sheets.filter(s => s.status === "draft" && s.days.every(d => !d.roster && !d.done))) {
     if (applyRoster(s)) { applyLeavePeriods(s); filled++; }
   }
-  // Leave requested before the roster was known gets its shifts and hours worked out now.
-  if (typeof refreshRequestShifts === "function") refreshRequestShifts();
   saveState();
   $("rosterDialog").close();
   const then = re.then;
@@ -156,8 +183,14 @@ function initRosterEntry() {
   });
   dlg.addEventListener("change", e => {
     const t = e.target;
-    if (t.id === "reStart") { if (t.value) { re.start = mondayOf(t.value); for (const d of entryDates()) if (!re.draft[d] && rosterDays()[d]) re.draft[d] = { ...rosterDays()[d] }; renderRosterEntry(); } return; }
+    if (t.id === "reStart") { if (t.value) { re.start = mondayOf(t.value); for (const d of entryDates()) if (!re.draft[d] && rosterDays()[d]) re.draft[d] = { ...rosterDays()[d] }; markBookedLeave(); renderRosterEntry(); } return; }
     if (t.dataset.reCode !== undefined) { setDraftCode(t.dataset.reCode, t.value); renderRosterEntry(); return; }
+    if (t.dataset.reStation) { const d = t.dataset.reStation; setDraftCode(d, re.draft[d].code, t.value); renderRosterEntry(); return; }
+    if (t.dataset.reAllst !== undefined) {
+      const w = Number(t.dataset.reAllst);
+      entryDates().slice(w * 7, w * 7 + 7).forEach(d => { const v = re.draft[d]; if (v && !["R", "L"].includes(v.code)) setDraftCode(d, v.code, v.code === "X" && !ROAD_STATIONS.includes(t.value) ? v.station : t.value); });
+      renderRosterEntry(); return;
+    }
     if (t.dataset.reFrom) re.draft[t.dataset.reFrom].from = t.value;
     if (t.dataset.reTo) re.draft[t.dataset.reTo].to = t.value;
   });
@@ -169,7 +202,11 @@ function initRosterEntry() {
     else if (t.dataset.reCancel !== undefined) { re.then = null; dlg.close(); }
     else if (t.dataset.reCopy) {
       const w = Number(t.dataset.reCopy), dates = entryDates();
-      for (let i = 0; i < 7; i++) { const src = re.draft[dates[(w - 1) * 7 + i]]; if (src) re.draft[dates[w * 7 + i]] = { ...src }; else delete re.draft[dates[w * 7 + i]]; }
+      for (let i = 0; i < 7; i++) {
+        const to = dates[w * 7 + i], src = re.draft[dates[(w - 1) * 7 + i]];
+        if (re.draft[to]?.code === "L") continue;                                    // booked leave stays
+        if (src && src.code !== "L") re.draft[to] = { ...src }; else delete re.draft[to];
+      }
       renderRosterEntry();
     }
   });

@@ -626,10 +626,17 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .roster-dialog { width: min(440px, calc(100vw - 24px)); }
 .re-week { border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px 10px; margin: 0 0 12px; }
 .re-week legend { font-weight: 700; font-size: .9rem; padding: 0 4px; }
-.re-day { display: grid; grid-template-columns: 5.2rem 1fr; align-items: center; gap: 4px 8px; padding: 3px 0; }
+.re-day { display: grid; grid-template-columns: 3.3rem 1fr; align-items: center; gap: 4px 8px; padding: 3px 0; }
 .re-day__name { font-weight: 600; font-size: .9rem; }
 .re-day__name small { display: block; font-weight: 400; color: var(--muted); }
 .re-day select { min-height: 38px; padding: .3rem .5rem; }
 .re-day__times { grid-column: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .re-week .link-btn { margin-top: 6px; }
 .roster-due { display: grid; gap: 6px; justify-items: start; margin: 4px 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--primary-soft); border-left: 4px solid var(--primary); }
+.re-all { display: grid; grid-template-columns: 1fr 9.5rem; align-items: center; gap: 8px; margin: 2px 0 6px; font-size: .85rem; color: var(--muted); }
+.re-all select { min-height: 34px; padding: .25rem .45rem; }
+.re-day__pick { display: grid; grid-template-columns: minmax(5.6rem, .8fr) 1.3fr; gap: 6px; }
+.re-day__pick select { padding-left: .4rem; padding-right: .2rem; }
+.re-day--leave span:last-child { padding: 8px 10px; border-radius: 8px; background: var(--leave-soft); color: var(--leave); font-weight: 600; font-size: .9rem; }
+.lv-fixed { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--leave-soft); cursor: pointer; }
+.lv-fixed input { width: 20px; height: 20px; accent-color: var(--primary); }

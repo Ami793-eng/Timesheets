@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-8";
+const APP_VERSION = "2026.11.05-9";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -642,7 +642,6 @@ function renderRosterSettings() {
   $("pRosterWrap").hidden = !p.rosterId || entered;
   $("pEnteredWrap").hidden = !entered;
   if (entered) {
-    $("pRoadBaseE").innerHTML = opt("", "Ask each time", !p.roadBase) + ROAD_STATIONS.map(s => opt(s, s, p.roadBase === s)).join("");
     const to = rosterEnteredTo();
     $("pEnteredStatus").innerHTML = to ? `Shifts entered up to <strong>${esc(displayDate(to))}</strong>.` : `No shifts entered yet.`;
   }
@@ -988,7 +987,7 @@ function rosterWeek(weekEndingIso) {
 }
 
 function describeRosterWeek(rw) {
-  return rw.shifts.map((sh, i) => `${DAYS[i].short} ${!sh.start ? "Rest" : rw.codes[i] === "O" ? `${sh.start}–${sh.finish}` : sh.label}`).join(" · ");
+  return rw.shifts.map((sh, i) => `${DAYS[i].short} ${sh.leave ? sh.leave : !sh.start ? "Rest" : rw.codes[i] === "O" ? `${sh.start}–${sh.finish}` : sh.label}${rw.stations?.[i] ? ` (${rw.stations[i]})` : ""}`).join(" · ");
 }
 
 // Pre-fill a new timesheet from the roster: shifts "worked as rostered", rest days boxed off.
@@ -1000,7 +999,11 @@ function applyRoster(sheet) {
   rw.codes.forEach((code, i) => {
     const d = sheet.days[i];
     const sh = rw.shifts[i];
-    d.station = code === "X" ? (state.profile.roadBase || "") : (rw.roster.station || d.station);
+    d.station = rw.stations?.[i] || (code === "X" ? (state.profile.roadBase || "") : (rw.roster.station || d.station));
+    if (sh.leave) {                                                   // leave already booked for that day (no shift known)
+      d.roster = "leave"; d.rosterLeave = sh.leave; d.actual = "same"; d.done = true; d.leaveSource = leavePeriodOn(d.date)?.id;
+      return;
+    }
     d.rosterLabel = sh.label;
     if (code === "R") {
       d.roster = "rest"; d.actual = "none"; d.done = false;   // confirmed with one tap as the week goes on
@@ -1134,8 +1137,9 @@ function isPlainRest(d) {
  * shift in those dates — on draft timesheets now, and on timesheets started later — is marked as
  * that leave. Published timesheets are never changed (use Revise). */
 
+// A period may list fixed days (leave requested before the shifts were known): only those days count.
 function leavePeriodOn(dateIso) {
-  return (state.leavePeriods || []).find(p => p.from <= dateIso && dateIso <= p.to) || null;
+  return (state.leavePeriods || []).find(p => p.from <= dateIso && dateIso <= p.to && (!p.days || p.days.includes(dateIso))) || null;
 }
 // Mark the rostered shifts on a draft that fall in a leave period. Returns how many days changed.
 function applyLeavePeriods(sheet) {
@@ -1143,6 +1147,10 @@ function applyLeavePeriods(sheet) {
   let n = 0;
   sheet.days.forEach(d => {
     const p = leavePeriodOn(d.date);
+    if (p && p.days && !d.roster) {                                 // a fixed leave day with no shift known: leave in its own right
+      d.roster = "leave"; d.rosterLeave = p.type; d.actual = "same"; d.leaveSource = p.id; d.done = true; n++;
+      return;
+    }
     if (!p || d.roster !== "times" || d.actual !== "same") return;   // rest days, and days already changed by hand, stay as they are
     d.actual = "leave"; d.actualLeave = p.type; d.leaveSource = p.id; d.done = true;
     n++;
@@ -1156,6 +1164,7 @@ function clearLeavePeriod(p) {
     s.days.forEach(d => {
       if (d.leaveSource !== p.id) return;
       if (d.actual === "leave" && d.actualLeave === p.type) { d.actual = "same"; d.actualLeave = ""; d.done = false; }
+      if (d.roster === "leave" && d.rosterLeave === p.type) { d.roster = ""; d.rosterLeave = ""; d.actual = "same"; d.done = false; }
       delete d.leaveSource;
     });
   }
@@ -1165,7 +1174,7 @@ function setFormLeavePeriods(formId, ranges, source, kind = "form") {
   state.leavePeriods = state.leavePeriods || [];
   state.leavePeriods.filter(p => p.formId === formId).forEach(clearLeavePeriod);
   state.leavePeriods = state.leavePeriods.filter(p => p.formId !== formId);
-  const added = ranges.map(r => ({ id: newId(), formId, type: r.type, from: r.from, to: r.to, source, kind }));
+  const added = ranges.map(r => ({ id: newId(), formId, type: r.type, from: r.from, to: r.to, source, kind, ...(r.days ? { days: r.days } : {}) }));
   state.leavePeriods.push(...added);
   let days = 0, sheets = 0;
   for (const s of state.sheets) { const n = applyLeavePeriods(s); if (n) { days += n; sheets++; } }
@@ -2778,7 +2787,6 @@ function bind() {
   $("pStdDayLeave").addEventListener("change", onLeaveRulesChange);
   $("pRosterStart").addEventListener("change", onRosterChange);
   $("pRoadBase").addEventListener("change", () => { state.profile.roadBase = $("pRoadBase").value; saveState(); toast("Road base saved."); });
-  $("pRoadBaseE").addEventListener("change", () => { state.profile.roadBase = $("pRoadBaseE").value; saveState(); toast("Road base saved."); });
   ROLES.map(r => `${r}List`).filter(id => $(id)).forEach(id => {
     $(id).addEventListener("input", onContactEdit);
     $(id).addEventListener("change", onContactEdit);

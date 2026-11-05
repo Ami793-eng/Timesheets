@@ -563,7 +563,7 @@ function formLeaveDates() {
 
 // The email for a filled form, e.g.
 //   Subject: Andrew Mitchell Study Leave Dec 26   (the month the leave starts, else this month)
-//   Body:    Hello / Please find HR 108(p) Study Leave application attached for 7/12/26. / Regards / <Name>
+//   Body:    Hello / Please find Study Leave application attached for 7/12/26. / Regards / <Name>
 function formEmail() {
   const p = state.profile;
   const prof = fx.open.profile && profileById(fx.open.profile);
@@ -575,7 +575,7 @@ function formEmail() {
   const forDates = dates ? ` for ${short(dates.from)}${dates.to !== dates.from ? ` – ${short(dates.to)}` : ""}` : "";
   return {
     subject: `${p.name} ${type} ${when}`,
-    body: `Hello\n\nPlease find ${prof ? profileName(prof) : fx.open.name} application attached${forDates}.\n\nRegards\n${p.name}`
+    body: `Hello\n\nPlease find ${type} application attached${forDates}.\n\nRegards\n${p.name}`
   };
 }
 
