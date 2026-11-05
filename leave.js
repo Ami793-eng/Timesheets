@@ -47,15 +47,26 @@ const weekEndingOf = iso => isoLocal(nextSunday(parseIso(iso)));
 const longDate = iso => `${DAYS[dayIndex(iso)].short} ${displayDate(iso)}`;
 
 // The rostered shifts in a date range (from the roster in My details, or from a timesheet already made for that week).
+// Non-rostered staff can book leave before they know their shifts: each day then counts as a fixed
+// 12-hour leave day (no station needed), and stays leave whatever shifts come later.
+const UNKNOWN_DAY_MINS = 12 * 60;
+
 function rosteredShifts(fromIso, toIso) {
+  const entered = typeof isEnteredRoster === "function" && isEnteredRoster();
   return datesBetween(fromIso, toIso).map(date => {
     const sheet = state.sheets.find(s => s.status === "draft" && s.weekEnding === weekEndingOf(date));
     const d = sheet?.days.find(x => x.date === date);
     if (d && d.roster === "times") return { date, label: d.rosterLabel || "Shift", from: d.rosterFrom, to: d.rosterTo, mins: shiftMins(d.rosterFrom, d.rosterTo) };
     if (d && d.roster === "rest") return null;
+    if (entered) {
+      const x = rosterDays()[date];
+      if (!x) return { date, label: "Leave day", mins: UNKNOWN_DAY_MINS, unknown: true, fixed: true };
+      if (x.code === "R" || x.code === "L") return null;
+      return { date, label: x.code === "O" ? "Shift" : ROSTER_SHIFTS[x.code].label, from: x.from, to: x.to, mins: shiftMins(x.from, x.to) };
+    }
     const rw = rosterWeek(weekEndingOf(date));
     if (!rw) return { date, label: "", mins: 0, unknown: true };
-    const sh = ROSTER_SHIFTS[rw.codes[dayIndex(date)]];
+    const sh = rw.shifts[dayIndex(date)];
     if (!sh || !sh.start) return null;                              // rest day
     return { date, label: sh.label, from: sh.start, to: sh.finish, mins: shiftMins(sh.start, sh.finish) };
   }).filter(Boolean);
@@ -248,10 +259,11 @@ function openLeaveEditor(startIso = "") {
 function draftRequest() {
   const e = lx.editing;
   const to = e.to < e.from ? e.from : e.to;
-  const shifts = rosteredShifts(e.from, to);
+  const shifts = rosteredShifts(e.from, to).filter(s => !(s.fixed && e.skip?.includes(s.date)));
   const mins = shifts.reduce((a, s) => a + s.mins, 0);
   const hours = e.hoursOverride !== "" && !isNaN(Number(e.hoursOverride)) ? Number(e.hoursOverride) : Math.round(mins / 6) / 10;
-  return { type: e.type, from: e.from, to, shifts, hours, note: e.note.trim(), unknown: shifts.some(s => s.unknown) };
+  const fixed = shifts.some(s => s.fixed);
+  return { type: e.type, from: e.from, to, shifts, hours, note: e.note.trim(), unknown: shifts.some(s => s.unknown && !s.fixed), fixed };
 }
 
 function renderLeaveEditor() {
@@ -268,8 +280,14 @@ function renderLeaveEditor() {
       <div class="field"><label for="lvToDate">To</label><input type="date" id="lvToDate" data-lv-f="to" value="${esc(r.to)}" min="${esc(e.from)}"></div>
     </div>
     <div class="lv-shifts">
-      ${r.shifts.length ? r.shifts.map(s => `<div><span>${longDate(s.date)}</span><span>${s.unknown ? `<em class="muted">no roster set</em>` : `${esc(s.label)} ${esc(s.from)}–${esc(s.to)} · ${fmtHours(s.mins)}`}</span></div>`).join("")
-        : `<p class="hint">No rostered shifts in these dates — they're all rest days.</p>`}
+      ${(() => {
+        const all = rosteredShifts(e.from, r.to);
+        if (!all.length) return `<p class="hint">No rostered shifts in these dates — they're all rest days.</p>`;
+        return all.map(s => s.fixed
+          ? `<label class="lv-fixed"><input type="checkbox" data-lv-day="${s.date}" ${e.skip?.includes(s.date) ? "" : "checked"}> <span>${longDate(s.date)}</span><span>Leave day · ${fmtHours(s.mins)}</span></label>`
+          : `<div><span>${longDate(s.date)}</span><span>${s.unknown ? `<em class="muted">no roster set</em>` : `${esc(s.label)} ${esc(s.from)}–${esc(s.to)} · ${fmtHours(s.mins)}`}</span></div>`).join("")
+          + (all.some(s => s.fixed) ? `<p class="hint">Your shifts aren't entered for these days yet, so each day counts as a 12h leave day. Untick any day you don't want.</p>` : "");
+      })()}
     </div>
     <div class="field">
       <label for="lvHours">Hours of leave</label>
@@ -314,7 +332,7 @@ function requestEmail(r, cancel = false) {
   const when = r.from === r.to ? displayDate(r.from) : `${displayDate(r.from)} - ${displayDate(r.to)}`;
   const subject = `${p.name} ${r.type} ${when}${cancel ? " - CANCELLATION" : ""}`;
   const lines = r.shifts.length
-    ? r.shifts.map(s => `${longDate(s.date)}${s.unknown ? "" : ` - ${s.label} ${s.from}-${s.to} (${fmtHours(s.mins)})`}`)
+    ? r.shifts.map(s => `${longDate(s.date)}${s.fixed ? ` (${fmtHours(s.mins)})` : s.unknown ? "" : ` - ${s.label} ${s.from}-${s.to} (${fmtHours(s.mins)})`}`)
     : [`${displayDate(r.from)}${r.from === r.to ? "" : ` to ${displayDate(r.to)}`}`];
   const body = [
     "Hello",
@@ -352,7 +370,7 @@ function sendRequest() {
   delete rec.unknown;
   state.leaveRequests = [...(state.leaveRequests || []), rec];
   openMail(requestEmail(rec));
-  const res = setFormLeavePeriods(rec.id, [{ type: rec.type, from: rec.from, to: rec.to }], "leave request", "request");
+  const res = setFormLeavePeriods(rec.id, [{ type: rec.type, from: rec.from, to: rec.to, ...(rec.fixed ? { days: rec.shifts.map(s => s.date) } : {}) }], "leave request", "request");
   lx.editing = null;
   $("leaveEditor").hidden = true;
   renderLeave();
@@ -420,6 +438,12 @@ function initLeave() {
     if (lx.editing && (f === "note" || f === "hoursOverride")) lx.editing[f] = e.target.value;
   });
   $("leaveEditor").addEventListener("change", e => {
+    if (e.target.dataset.lvDay && lx.editing) {                     // tick / untick a fixed leave day
+      const d = e.target.dataset.lvDay, skip = new Set(lx.editing.skip || []);
+      e.target.checked ? skip.delete(d) : skip.add(d);
+      lx.editing.skip = [...skip]; lx.editing.hoursOverride = "";
+      return renderLeaveEditor();
+    }
     const f = e.target.dataset.lvF;
     if (!f || !lx.editing || f === "note" || f === "hoursOverride") return;
     lx.editing[f] = e.target.value;

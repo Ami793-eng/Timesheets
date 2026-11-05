@@ -82,6 +82,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 ### Roster
 - **Built-in roster "Clinical Hub 16week"** (16 lines): Day 07–19, Night 19–07, Road 07–19, Rest.
 - **Setting it up:** in My details, choose the base roster and a **starting week** (a week-commencing Monday) plus its line. The line for any week is calculated from that, wrapping round after line 16.
+- **Non-rostered staff** (`roster-entry.js`): Roster list heading "Non-rostered" with 1, 2, 4 or 8 weeks (option value `entered:n`; `profile.rosterId = "entered"`, `profile.rosterWeeks = n`). Shifts are kept by date in `profile.rosterDays` (`{ code, from, to, station }`, a station per shift — no base) and read by `rosterWeek()` like a roster line; the app prompts when they run out. Leave requested before the shifts are known = fixed 12h days (leave period with `days`), shown as booked (code `L`) in the entry and put on the timesheet as leave (`roster: "leave"`).
 - **Road shifts** are from **Sligo, Manorhamilton or Ballyshannon**, with a "usual road base" setting or *ask each time*. Day and Night are NEOC.
 - **New timesheets pre-fill** from the roster: shifts are "finished as rostered", and rest days show as a slim **"Rest Day — confirm?"** row with [✓ Rest day] [Worked (OT / TOIL)] buttons.
 - **Stations and shift rules:** Sligo (any listed shift), Ballyshannon and NEOC (07/19 starts), Manorhamilton and Carrick on Shannon (08/20 starts), Other. Road shifts ignore the station start rules.
@@ -138,7 +139,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 - **Day cards:** date block and colour chips (Day amber, Night indigo, Road teal, Rest grey, Leave purple, OT orange, Subsistence blue, problems red).
 - **Folded shift details:** "NEOC · Day 07:00–19:00 · 12h · Change".
 - **Bottom bar:** "x/7 days done · Review & publish".
-- **Themes:** Teal, NAS Green, Navy, Plum, Slate, each in Light, Dark or Match phone.
+- **Themes:** Teal, Green, Navy, Plum, Slate, each in Light, Dark or Match phone.
 
 ---
 

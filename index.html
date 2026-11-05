@@ -22,7 +22,7 @@
       if (p.theme && p.theme !== "teal") r.setAttribute("data-theme", p.theme);
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=2026.11.03-6">
+  <link rel="stylesheet" href="styles.css?v=2026.11.05-10">
 </head>
 <body>
   <header class="app-header">
@@ -59,6 +59,7 @@
           <small class="hint" id="weekEndingHint"></small>
           <div class="week-roster" id="weekRoster" hidden></div>
         </div>
+        <div id="rosterDue"></div>
         <button class="btn btn--primary" id="startBtn">Start timesheet</button>
         <div id="openDrafts"></div>
       </div>
@@ -299,7 +300,7 @@
           <legend>My roster</legend>
           <p class="hint">Pick your base roster and a starting week (and which line that week is). New timesheets are then filled in for you: shifts as rostered, rest days boxed off.</p>
           <div class="field">
-            <label for="pRoster">Base roster</label>
+            <label for="pRoster">Roster</label>
             <select id="pRoster"></select>
           </div>
           <div id="pRosterWrap" hidden>
@@ -319,6 +320,11 @@
               <small class="hint">Road shifts are from Sligo, Manorhamilton or Ballyshannon. Choose "Ask each time" if it varies — each Road day then asks.</small>
             </div>
             <div class="roster-preview" id="pRosterPreview"></div>
+          </div>
+          <div id="pEnteredWrap" hidden>
+            <p class="roster-preview" id="pEnteredStatus"></p>
+            <button type="button" class="btn" data-roster-entry>Enter my shifts</button>
+            <p class="hint">You pick the station for each shift. When your entered shifts run out, the app asks for the next lot before you start a timesheet. Leave you've already requested, or put in with a form, is added on top.</p>
           </div>
         </fieldset>
 
@@ -386,12 +392,14 @@
           <input type="file" id="importBackupFile" accept="application/json,.json" hidden>
         </div>
         <p class="hint" id="templateStatus"></p>
-        <p class="hint">App version <span id="appVersion">2026.11.03-6</span></p>
+        <p class="hint">App version <span id="appVersion">2026.11.05-10</span></p>
       </div>
     </section>
   </main>
 
   <!-- After publishing -->
+  <dialog id="rosterDialog" class="roster-dialog"></dialog>
+
   <dialog id="publishedDialog">
     <form method="dialog" class="dialog">
       <h3>Timesheet published</h3>
@@ -444,9 +452,10 @@
 
   <script src="lib/exceljs.min.js?v=4.4.0"></script>
   <script src="lib/jspdf.umd.min.js?v=2.5.2"></script>
-  <script src="form-profiles.js?v=2026.11.03-6" defer></script>
-  <script src="leave.js?v=2026.11.03-6" defer></script>
-  <script src="forms.js?v=2026.11.03-6" defer></script>
-  <script src="app.js?v=2026.11.03-6"></script>
+  <script src="form-profiles.js?v=2026.11.05-10" defer></script>
+  <script src="roster-entry.js?v=2026.11.05-10" defer></script>
+  <script src="leave.js?v=2026.11.05-10" defer></script>
+  <script src="forms.js?v=2026.11.05-10" defer></script>
+  <script src="app.js?v=2026.11.05-10"></script>
 </body>
 </html>
