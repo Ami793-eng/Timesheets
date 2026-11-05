@@ -16,8 +16,7 @@
  */
 "use strict";
 
-// Force Majeure isn't requested ahead — its form (HR 108f) is sent after the leave.
-const REQUEST_TYPES = ["Annual Leave", "Parental Leave", "Study Leave", "Examination Leave", "Interview Leave", "Marriage Leave"];
+const REQUEST_TYPES = ["Annual Leave", "Parental Leave", "Force Majeure", "Study Leave", "Examination Leave", "Interview Leave", "Marriage Leave"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const lx = { editing: null };   // the request being made in the editor
 

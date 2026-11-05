@@ -627,19 +627,6 @@ const FORM_PROFILES = [
   }
 ];
 
-// When each form is sent, from the forms' own notes: notice = days before the leave starts;
-// after = only once the leave is taken; text = what to show when there's no fixed rule.
-const FORM_TIMING = {
-  hr108a: { notice: 28 }, hr108c: { notice: 28 }, hr108e: { notice: 28 }, hr108i: { notice: 28 }, hr108j: { notice: 28 },
-  hr108k: { notice: 28 }, hr108n: { notice: 28 }, hr108p: { notice: 28 }, hr108q: { notice: 14 },
-  hr108f: { after: true, text: "after the leave, as soon as reasonably practicable", short: "after the leave" },
-  hr108d: { text: "at the time of the bereavement", short: "at the time" },
-  hr108u: { text: "before or after the leave", short: "before or after" }
-};
-FORM_PROFILES.forEach(p => { p.timing = FORM_TIMING[p.id] || null; });
-const timingText = t => !t ? "" : t.notice ? `at least ${t.notice / 7} weeks before the leave starts` : t.text;
-const timingShort = t => !t ? "" : t.notice ? `${t.notice / 7} weeks' notice` : t.short;
-
 // Forms on the HSE list that aren't built in yet (no fillable PDF here).
 const OTHER_HSE_FORMS = [
   { code: "HR 108(b)", title: "Anticipation of Annual Leave", url: HSE + "757/HR_108b_anticipation_of_annual_leave_application_form.pdf" },

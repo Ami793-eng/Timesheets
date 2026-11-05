@@ -306,7 +306,7 @@ async function renderForms() {
     const mine = own.get(p.id);
     return `<li class="bf">
       <button type="button" class="bf__main" data-form-fill="${esc(mine ? mine.id : "builtin:" + p.id)}">
-        <strong>${esc(p.code)}</strong> <span>${esc(p.title)}</span>${mine ? ` <span class="opt">your copy</span>` : ""}${p.timing ? `<small class="bf__when">Send ${p.timing.notice ? "with " : ""}${esc(timingShort(p.timing))}</small>` : ""}
+        <strong>${esc(p.code)}</strong> <span>${esc(p.title)}</span>${mine ? ` <span class="opt">your copy</span>` : ""}
       </button>
       <a class="bf__link" href="${esc(p.url)}" target="_blank" rel="noopener" title="Check the latest version on the HSE site" aria-label="Check the latest ${esc(p.title)} form on the HSE site">HSE ↗</a>
     </li>`;
@@ -455,8 +455,7 @@ function renderFormEditor() {
   $("formEditor").innerHTML = `
     <div class="form-ed__head">
       <div><div class="eyebrow">Fill in</div><h2>${esc(t.name)}</h2>
-      <p class="muted">${fx.prefilled?.size ? `${fx.prefilled.size} boxes filled from My details. ` : ""}Boxes are listed in the order they appear on the form.</p>
-      ${(() => { const tm = profileById(t.profile)?.timing; return tm ? `<p class="hint"><strong>When to send:</strong> ${esc(timingText(tm))}.</p>` : ""; })()}</div>
+      <p class="muted">${fx.prefilled?.size ? `${fx.prefilled.size} boxes filled from My details. ` : ""}Boxes are listed in the order they appear on the form.</p></div>
       <button type="button" class="btn btn--ghost btn--small" data-form-close>Close</button>
     </div>
     <div class="form-fields">${mine.map(fieldInput).join("")}</div>
@@ -467,7 +466,6 @@ function renderFormEditor() {
     </div>
     <div id="formOut" hidden class="form-out">
       <p class="muted" id="formOutName"></p>
-      <p class="hint warn-text" id="formTiming" hidden></p>
       <p class="hint leave-note" id="formLeave" hidden></p>
       <div class="actions">
         <button type="button" class="btn btn--primary" data-form-share>Email with PDF attached</button>
@@ -499,9 +497,6 @@ async function saveAndMake() {
     fx.file = await buildFilledPdf(fx.open, fx.values, fx.fields);
     $("formOut").hidden = false;
     $("formOutName").textContent = `${fx.file.name} is ready.`;
-    const tw = timingWarning(profileById(fx.open.profile)?.timing, formLeaveDates());
-    $("formTiming").hidden = !tw;
-    $("formTiming").textContent = tw;
     const lv = putLeaveOnTimesheets(rec);
     $("formLeave").hidden = !lv;
     $("formLeave").innerHTML = lv || "";
@@ -564,18 +559,6 @@ function formLeaveDates() {
   const from = box("from") ? isoFromDisplay(fx.values[box("from")]) : "";
   const to = box("to") ? isoFromDisplay(fx.values[box("to")]) : "";
   return from ? { from, to: to && to >= from ? to : from } : null;
-}
-
-// Is this form being sent at the right time for its leave? Returns a warning or "".
-function timingWarning(t, dates) {
-  if (!t || !dates) return "";
-  const days = Math.round((parseIso(dates.from) - parseIso(isoLocal(new Date()))) / 864e5);
-  if (t.notice && days < t.notice) {
-    return days < 0 ? `This form should have gone in ${t.notice / 7} weeks before the leave started — send it as soon as you can.`
-      : `Only ${days} day${days === 1 ? "" : "s"} until the leave — this form needs ${t.notice / 7} weeks' notice. Send it as soon as you can.`;
-  }
-  if (t.after && days > 0) return `This form is for leave already taken — send it after ${displayDate(dates.from)}.`;
-  return "";
 }
 
 // The email for a filled form, e.g.
