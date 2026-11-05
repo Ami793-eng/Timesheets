@@ -548,12 +548,30 @@ function removeFormLeave(formId) {
   toast("Leave taken off your timesheets.");
 }
 
+// The email for a filled form: subject "<Name> <Leave type> <Mon YY>" (the month the leave starts,
+// or this month), e.g. "Andrew Mitchell Study Leave Dec 26".
+function formEmail() {
+  const p = state.profile;
+  const prof = fx.open.profile && profileById(fx.open.profile);
+  const type = prof ? prof.title : fx.open.name;
+  let start = fx.link?.from || formLeaveRanges(fx.values, fx.open.profile)?.[0]?.from || "";
+  if (!start && prof?.leaveFill) {
+    const box = Object.entries(prof.leaveFill).find(([, what]) => what === "from")?.[0];
+    start = box ? isoFromDisplay(fx.values[box]) : "";
+  }
+  const d = start ? parseIso(start) : new Date();
+  const when = `${"Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+  return {
+    subject: `${p.name} ${type} ${when}`,
+    body: `Hello\n\nPlease see ${type} application form attached.\n\nRegards\n${p.name}`
+  };
+}
+
 // Called straight from the tap so phones allow sharing.
 function shareForm() {
   if (!fx.file) return toast("Tap “Save & make PDF” first.", true);
   const p = state.profile;
-  const subject = `${p.name} – ${fx.open.name}`;
-  const body = `Hello\n\nPlease find my ${fx.open.name} attached.\n\nKind Regards\n${p.name}`;
+  const { subject, body } = formEmail();
   const emails = [...(p.contacts || []).filter(c => c.default && c.email).map(c => c.email), ...(p.meDefault && p.meEmail ? [p.meEmail] : [])];
   if (emails.length && navigator.clipboard) navigator.clipboard.writeText(emails.join(", ")).catch(() => {});
   const rec = (state.forms || []).find(r => r.id === fx.recordId);
