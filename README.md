@@ -2,6 +2,8 @@
 
 A simple weekly timesheet web app for staff. It runs entirely in the browser and is hosted free on GitHub Pages. There's no server and no login.
 
+▶️ **Explainer video (2½ min):** [media/timesheet-hub-explainer.mp4](media/timesheet-hub-explainer.mp4) — roster-filled timesheets, forms linked to your leave dates, the annual leave tracker and booker, and the pre-written emails. See `PROJECT_SUMMARY.md` for a full overview.
+
 Staff fill in their week (they can save it and come back during the week), publish it, and it downloads as a filled-in Excel timesheet ready to email. Every published sheet is kept in a library on that device, so it can be downloaded again, re-sent, or revised.
 
 ## Features
