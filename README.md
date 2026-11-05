@@ -121,7 +121,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Character-limited boxes** (e.g. 8 squares for a date) are filled to fit: dates become ddmmyyyy, and PPS is split into digits and letters. If something still doesn't fit, the app says so.
   - **Safer guessing on other forms:** each of your details only goes in the first matching box (e.g. "Name", not a manager's "Name1").
   - **Forms that aren't fillable** (no boxes in the PDF) can't be filled automatically yet; a layout has to be added for them.
-- **Appearance:** set in My details. Choose a colour (Teal, NAS Green, Navy, Plum or Slate) and Light, Dark or Match phone.
+- **Appearance:** set in My details. Choose a colour (Teal, Green, Navy, Plum or Slate) and Light, Dark or Match phone.
 - **Backup:** export or import a backup file in My details.
 
 ## Excel cell map

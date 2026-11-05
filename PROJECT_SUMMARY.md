@@ -138,7 +138,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 - **Day cards:** date block and colour chips (Day amber, Night indigo, Road teal, Rest grey, Leave purple, OT orange, Subsistence blue, problems red).
 - **Folded shift details:** "NEOC · Day 07:00–19:00 · 12h · Change".
 - **Bottom bar:** "x/7 days done · Review & publish".
-- **Themes:** Teal, NAS Green, Navy, Plum, Slate, each in Light, Dark or Match phone.
+- **Themes:** Teal, Green, Navy, Plum, Slate, each in Light, Dark or Match phone.
 
 ---
 

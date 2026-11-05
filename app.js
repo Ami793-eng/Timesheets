@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-5";
+const APP_VERSION = "2026.11.05-6";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -2813,7 +2813,7 @@ function bind() {
 
 const THEMES = [
   { id: "teal",  label: "Teal",      color: "#0b5f73" },
-  { id: "green", label: "NAS Green", color: "#1f7a4d" },
+  { id: "green", label: "Green", color: "#1f7a4d" },
   { id: "navy",  label: "Navy",      color: "#1e3a8a" },
   { id: "plum",  label: "Plum",      color: "#6b2f8a" },
   { id: "slate", label: "Slate",     color: "#334155" }
