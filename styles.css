@@ -635,8 +635,12 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .roster-due { display: grid; gap: 6px; justify-items: start; margin: 4px 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--primary-soft); border-left: 4px solid var(--primary); }
 .re-all { display: grid; grid-template-columns: 1fr 9.5rem; align-items: center; gap: 8px; margin: 2px 0 6px; font-size: .85rem; color: var(--muted); }
 .re-all select { min-height: 34px; padding: .25rem .45rem; }
-.re-day__pick { display: grid; grid-template-columns: minmax(5.6rem, .8fr) 1.3fr; gap: 6px; }
-.re-day__pick select { padding-left: .4rem; padding-right: .2rem; }
+.re-day__pick { display: grid; grid-template-columns: 1fr 1.25fr; gap: 6px; }
+.re-day__pick select { padding-left: .4rem; padding-right: .2rem; font-size: .88rem; }
 .re-day--leave span:last-child { padding: 8px 10px; border-radius: 8px; background: var(--leave-soft); color: var(--leave); font-weight: 600; font-size: .9rem; }
 .lv-fixed { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--leave-soft); cursor: pointer; }
 .lv-fixed input { width: 20px; height: 20px; accent-color: var(--primary); }
+.roster-dialog .dialog { padding: 16px 12px; }
+.roster-dialog .re-week { padding: 6px 8px 10px; }
+.roster-dialog .re-day { grid-template-columns: 2.9rem 1fr; gap: 4px 6px; }
+.roster-dialog .re-day__pick { grid-template-columns: 1.15fr 1fr; gap: 5px; }
