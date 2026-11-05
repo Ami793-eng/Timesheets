@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-2";
+const APP_VERSION = "2026.11.05-3";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1176,6 +1176,18 @@ function leaveRun(sheet, i) {
 function linkedLeaveForm(sheet, run) {
   return (state.forms || []).find(r => r.link && r.link.sheetId === sheet.id && r.link.type === run.type && r.link.from <= run.to && r.link.to >= run.from) || null;
 }
+// "Send by …" for forms that need notice, "Send after …" for ones sent once the leave is taken.
+function leaveFormDue(t, run) {
+  if (!t) return "";
+  const today = isoLocal(new Date());
+  if (t.notice) {
+    const due = parseIso(run.from); due.setDate(due.getDate() - t.notice);
+    return isoLocal(due) < today ? `<span class="warn-text">Was due ${shortDate(isoLocal(due))} — send now</span>` : `<span class="muted">Send by ${shortDate(isoLocal(due))}</span>`;
+  }
+  if (t.after) return run.to >= today ? `<span class="muted">Send after the leave</span>` : `<span class="warn-text">Send now</span>`;
+  return "";
+}
+
 function leaveFormRow(d, i) {
   const sheet = currentSheet();
   const period = d.leaveSource && d.actual === "leave" && (state.leavePeriods || []).find(p => p.id === d.leaveSource);
@@ -1211,6 +1223,7 @@ function leaveFormRow(d, i) {
       <div class="leave-form__text">
         <strong>${esc(p.code)} ${esc(p.title)} form</strong>
         <span class="muted">${span} · ${run.days} day${run.days === 1 ? "" : "s"}</span>
+        ${rec ? "" : leaveFormDue(p.timing, run)}
         ${rec ? `<span class="chip2 chip-leave">${sent ? `Sent ${esc(sent.toLocaleDateString("en-IE", { day: "2-digit", month: "2-digit" }))}` : "Filled in"}</span>` : ""}
       </div>
       <button type="button" class="btn btn--small" data-leave-form="${i}">${rec ? "Open form" : "Fill in the form"}</button>
