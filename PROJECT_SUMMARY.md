@@ -6,7 +6,7 @@ A single document to start a new project or session from. It covers what the app
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.05-11` (pull requests #1–#4 merged and live; #5 adds Parent's Leave, the summary and the videos).
+- **State at handover:** app version `2026.11.08-1` (pull requests #1–#5 merged and live; #6 adds Parent's Leave week blocks, shift swaps and the Records tab).
 - **Videos:** a **30-second highlight reel** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) and the **2½-minute explainer** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4), both on the live site under https://ami793-eng.github.io/Timesheets/media/ (see section 6).
 
 ---
@@ -48,7 +48,7 @@ Every email is written for you; you just send it.
 | **HSE form** | `Andrew Mitchell Parent's Leave Nov 26` (month the leave starts) | Hello / Please find Parent's Leave application attached for 9/11/26 – 15/11/26. / Regards / <Name> |
 
 - Timesheets and forms go through the phone's **share sheet with the PDF attached**; recipients (ORM, DCM, Supervisor, Me) are copied ready to paste. Leave emails open the mail app with **To, CC, subject and body filled in**.
-- Every send is logged (Library history, filled forms, leave requests).
+- Every send is logged (Records history, filled forms, leave requests).
 
 ---
 
@@ -57,7 +57,7 @@ Every email is written for you; you just send it.
 A static web app (no server, no login) that staff use on their phone:
 
 1. **Timesheet:** the week, pre-filled from the roster. Produces the official **NAS timesheet** (from `template.xlsx`) as a locked **PDF**, emailed to managers.
-2. **Library:** every published timesheet with its history, who it was emailed to and when, and amended versions.
+2. **Records** (was Library): **Timesheets** (published timesheets, history, sends, amended versions), **Forms** (filled HSE forms) and **Swaps** (I owe / Owed to me / completed), with a badge for open swaps.
 3. **Leave:** book leave by email, put it on the timesheets and calendar, track annual leave hours and the structured leave blocks.
 4. **Forms:** the official **HSE HR forms** (18 built in), filled with saved details and signature, linked to timesheet leave.
 5. **My details:** profile, signature, roster (fixed or non-rostered), email recipients, leave rules, appearance and backup.
@@ -75,10 +75,11 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 
 | File | Purpose |
 |---|---|
-| `index.html` | All screens (tabs: Timesheet, Library, Leave, Forms, My details), dialogs, early theme script |
+| `index.html` | All screens (tabs: Timesheet, Records, Leave, Forms, My details), dialogs, early theme script |
 | `styles.css` | Mobile-first styling, colour themes, dark mode (`html.dark` class) |
 | `app.js` | State, roster, day logic, validation, Excel fill, PDF render, timesheet email, library, leave periods, appearance, PWA |
 | `roster-entry.js` | Non-rostered staff: entering shifts (station + shift) every 1, 2, 4 or 8 weeks |
+| `swaps.js` | Shift swaps: the swap record, putting halves on timesheets, the swap dialog, Records views and badge |
 | `leave.js` | Leave tab: requests and emails, timesheet pre-fill, calendar file, annual leave tracker, NASPO36 blocks and reminders |
 | `forms.js` | Forms tab: reads and fills fillable PDFs, built-in and uploaded forms, form emails, form ↔ timesheet links |
 | `form-profiles.js`, `forms/` | Setups for each HSE form (`FORM_PROFILES`), and the bundled blank PDFs |
@@ -91,7 +92,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 | `fonts/` | Handwriting fonts for typed signatures (open licences) |
 
 **Storage:**
-- **localStorage**, key `timesheetHub_v1`: `{ profile, currentId, sheets[], forms[], leavePeriods[], leaveRequests[] }`.
+- **localStorage**, key `timesheetHub_v1`: `{ profile, currentId, sheets[], forms[], leavePeriods[], leaveRequests[], swaps[] }` (older saved data simply has no `swaps` yet and starts with none).
   - Each sheet has `days[7]`, `history`, `sends`, `version`, `staff` snapshot and `rosterLine`.
   - `profile` also holds the roster (`rosterId`, `rosterAnchor`, `rosterAnchorLine`, or `rosterId: "entered"` with `rosterWeeks` and `rosterDays`) and `profile.leave` (workforce planning email, entitlement hours, leave year start).
   - `leavePeriods`: `{ id, formId, type, from, to, source, kind: "form" | "request", days? }` — leave put on timesheets by date.
@@ -161,15 +162,23 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 - **Uploaded forms:** any fillable PDF can be added; boxes listed in page order and pre-filled by guessing.
 - **Not built in:** HR 108(b), 108(o), HR 110 (not needed for now); HR 108(l) (no fillable boxes); HR 117 (Word document).
 
+### Shift swaps (`swaps.js`)
+- **Personal only:** no link to anyone else's data; the colleague's name is a label.
+- **Record:** `state.swaps` = `{ id, direction: "off" | "on", colleague, note, first: { date, station, from, to }, second: same | null }`. `first` is the half it was logged from (the swap's direction); `second` is the other half (the opposite direction), blank until known.
+- **Owed:** open swap with direction *off* = **I owe**; with direction *on* = **Owed to me**; both halves recorded = **complete**.
+- **Entry points:** What happened → *Swapped off* (rostered shift); *⇄ Swapped on* on a rest day; *⇄ Record a shift swap* under any day; *＋ Record a swap* in Records → Swaps. A swap off fills in the rostered shift for that date; a swap on picks station + that station's shift (or other times).
+- **On timesheets** (`syncSwapsForSheet`, run whenever a week is shown and after every swap change): a swapped-off day keeps the rostered shift in the Roster row and records *Shift Swap* under Actual; a swapped-on day gets the colleague's shift (label "Swap"). Each such day has `d.swap = { id, half, sig }`, and the notes column (M) reads "Shift Swap: Swapped off – Pat Murphy (on 18/11)". A half that's removed or moved puts the day back from the roster (`fillDayFromRoster`). Published timesheets aren't changed; the app names them to revise.
+- The old free-text *Shift Swap* leave choice is no longer offered (old days that used it still show as before).
+
 ### Publishing, PDF and email
 - **Publish = locked PDF** drawn from the filled template, with a footer (publish time, AMENDED n, roster line). Print and annotate allowed; editing and copying blocked (a deterrent).
-- **Excel copy** under Library → More → *Export as Excel*.
+- **Excel copy** under Records → Timesheets → More → *Export as Excel*.
 - **Recipients:** ORM, DCM and Supervisor contacts (name + email + default tick), plus **Me** in CC.
 - **Emails:** see Highlights §5. A website can't fill To/CC in the share sheet, so addresses are copied to paste; "Open email" (mailto) fills them but the PDF is attached by hand.
 - **Amendments:** *Revise* makes AMENDED 1, 2, 3… (subject, body, file name, labels); the previous version is marked *superseded*.
 
 ### Look and feel
-- **Tabs:** Timesheet / Library / Leave / Forms / My details (fit on one line down to 360px).
+- **Tabs:** Timesheet / Records / Leave / Forms / My details (fit on one line down to 360px). The Records tab keeps its internal id `library`, so saved data and links carry over.
 - **Week strip**, **day cards** with colour chips (Day amber, Night indigo, Road teal, Rest grey, Leave purple, OT orange, Subsistence blue, problems red), folded shift details, bottom bar "x/7 days done · Review & publish".
 - **Themes:** Teal, Green, Navy, Plum, Slate, each in Light, Dark or Match phone.
 

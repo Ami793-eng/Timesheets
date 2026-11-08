@@ -68,13 +68,13 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Drafts:** these autosave as you type.
 - **Publish = locked PDF:** publishing creates a **PDF only**. It is drawn straight from the filled-in Excel template, using the template's own colours, column widths, merged cells, borders, fonts, logo and notes. The PDF is **locked**: it opens without a password and can be **printed and signed**, but normal PDF readers won't let the timesheet's content be edited or copied. For example, a manager can add a signature in the Line Manager box with Adobe Fill & Sign, or print it and sign by hand. This is a strong deterrent rather than unbreakable protection.
   - **Preview PDF** on a draft lets you check it first.
-  - **Revise** in the Library makes a corrected version (AMENDED 1, 2, …).
-  - **Excel:** the Library card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
+  - **Revise** in Records → Timesheets makes a corrected version (AMENDED 1, 2, …).
+  - **Excel:** the Records → Timesheets card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
 - **Attachments:** on phones, **Email with PDF attached** opens your phone's share sheet with the PDF already attached. Pick your email app, then paste the copied addresses into To. **Open email** fills in the addresses and subject, but the PDF has to be attached by hand from Downloads, because browsers can't attach files to an email draft themselves.
 - **Email recipients:** set them up in My details, under the signature.
   - **ORM** (Operational Resource Manager), **DCM** (Duty Control Manager) and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
   - **Me:** your own email, sent as *CC*.
-- **Sending:** after publishing, or from the Library, everyone is listed under ORM, DCM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
+- **Sending:** after publishing, or from Records → Timesheets, everyone is listed under ORM, DCM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
 - **Email template:**
   ```
   Subject: <Name> Timesheet <week ending>
@@ -94,7 +94,16 @@ Staff fill in their week (they can save it and come back during the week), publi
 
   The earlier version is marked *superseded*.
 - **Sent log:** each timesheet records **"Sent by email to John Campbell (ORM), Joe Bloggs (DCM), Me · date and time"**. It's shown on the library card and in the History with the full addresses. The time is recorded when you open the email from the app; the app can't see whether you then pressed Send in your mail app.
-- **Library:** search and filter your timesheets (including by who they were sent to), download one again, or email it again.
+- **Records** (was *Library*) has three views at the top:
+  - **Timesheets:** search and filter your timesheets (including by who they were sent to), download one again, email it again or revise it.
+  - **Forms:** the HSE forms you've filled in, to reopen, resend or change.
+  - **Swaps:** open swaps in two groups — **I owe** and **Owed to me** — with completed swaps below as history. Tap a swap to view or edit it, add the other half, or delete it. The Records tab shows a badge with the number of open swaps.
+- **Shift swaps** (personal to you; nothing is shared with the colleague's app):
+  - **Logging one:** on a rostered shift choose **What happened → Swapped off**, on a rest day tap **⇄ Swapped on**, or use **⇄ Record a shift swap** under any day (or **＋ Record a swap** in Records → Swaps).
+  - **Details:** direction (swapped off = I gave my shift away; swapped on = I work a colleague's shift), the colleague's name (just a label), the shift being changed (your rostered shift is filled in for a swap off; pick the station and shift for a swap on), and optionally the other half — its date, station and shift. Leave the other half blank if the payback date isn't known yet.
+  - **One record, both halves:** each swap is saved once with its own ID. When you open the week that holds the other half, it's filled in automatically with the opposite direction and the colleague's name. Editing or deleting from either half updates the record and both draft timesheets; a deleted half goes back to what your roster says. Published timesheets aren't changed (the app tells you which to revise).
+  - **On the timesheet:** a swapped-off day keeps your rostered shift in the Roster row and records *Shift Swap* in the Actual row; a swapped-on day shows the colleague's shift. The notes column reads e.g. "Shift Swap: Swapped off – Pat Murphy (on 18/11)".
+  - **Owed:** a swap off with no shift back yet means you owe that colleague a shift; a swap on with no swap off yet means a shift is owed to you. Once both halves are recorded the swap is complete.
 - **History:** each sheet keeps a log of what happened to it and when.
 - **Add to Home Screen:** a button in the header installs the app with its own icon, and it opens full screen.
   - **Android / Chrome:** installs in one tap.
