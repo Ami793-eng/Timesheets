@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.08-1";
+const APP_VERSION = "2026.11.09-1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1750,6 +1750,9 @@ function onDayInput(e) {
     default:
       d[f] = el.value;
   }
+  // Choosing what happened (e.g. Extended duty) or how long always works the overtime out again,
+  // even if the overtime toggle or times were touched by hand earlier on this day.
+  if (["actual", "actualMins"].includes(f)) d.otAuto = true;
   if (["rosterValue", "rosterFrom", "rosterTo", "rosterHours", "actual", "actualMins", "partFrom", "partTo", "actualFrom", "actualTo", "actualHours", "actualLeave"].includes(f)) {
     autoOvertime(d);
   }
