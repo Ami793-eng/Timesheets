@@ -1,4 +1,4 @@
-/* Timesheet Hub — roster-entry.js
+/* FiNASh Time — roster-entry.js
  * For non-rostered staff who get their shifts 1, 2, 4 or 8 weeks at a time instead of a fixed
  * rolling roster (My details → My roster → "Non-rostered (I enter my shifts)", then how often).
  *

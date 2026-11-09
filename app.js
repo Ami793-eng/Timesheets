@@ -1,4 +1,4 @@
-/* Timesheet Hub — app.js
+/* FiNASh Time — app.js
  * Static, browser-only timesheet builder for GitHub Pages.
  * Drafts + library are stored in localStorage; Excel export uses ExcelJS
  * and fills template.xlsx (or a built-in layout if no template is present).
@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.09-2";
+const APP_VERSION = "2026.11.09-3";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -2358,12 +2358,16 @@ function pngSize(dataUrl) {
   } catch { return { w: 0, h: 0 }; }
 }
 
+// Every file the app makes is named "FiNASh-Time_<date>_<what>.<ext>", e.g. FiNASh-Time_2026-11-15_Timesheet.pdf.
+function appFileName(dateIso, what, ext) {
+  const w = String(what).replace(/[’']/g, "").replace(/[^a-zA-Z0-9_]+/g, "-").replace(/^-+|-+$/g, "");
+  return `FiNASh-Time_${dateIso}_${w}.${ext}`;
+}
+
+// A timesheet's file: dated by its week ending, e.g. FiNASh-Time_2026-11-15_Timesheet_AMENDED1.pdf.
 function fileName(sheet, suffix = "") {
-  const s = sheet.staff || state.profile;
-  const name = String(s.name || "Staff").replace(/[^a-zA-Z0-9]+/g, "");
-  const num = String(s.number || "NoNumber").replace(/[^a-zA-Z0-9]+/g, "");
   const v = amendNo(sheet) ? `_AMENDED${amendNo(sheet)}` : "";
-  return `Timesheet_${num}_${name}_WE_${sheet.weekEnding}${v}${suffix}.xlsx`;
+  return appFileName(sheet.weekEnding, `Timesheet${v}${suffix}`, "xlsx");
 }
 
 function downloadFile(file) {
@@ -2734,8 +2738,8 @@ function deleteSheet(id) {
 /* ------------------------------------------------------------------ */
 
 function exportBackup() {
-  const blob = new Blob([JSON.stringify({ app: "Timesheet Hub", exportedAt: new Date().toISOString(), ...state }, null, 2)], { type: "application/json" });
-  downloadFile(new File([blob], `timesheet-hub-backup-${isoLocal(new Date())}.json`, { type: "application/json" }));
+  const blob = new Blob([JSON.stringify({ app: "FiNASh Time", exportedAt: new Date().toISOString(), ...state }, null, 2)], { type: "application/json" });
+  downloadFile(new File([blob], appFileName(isoLocal(new Date()), "Backup", "json"), { type: "application/json" }));
 }
 
 function importBackup(e) {
@@ -2746,7 +2750,7 @@ function importBackup(e) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (!Array.isArray(data.sheets)) throw new Error("Not a Timesheet Hub backup.");
+      if (!Array.isArray(data.sheets)) throw new Error("Not a FiNASh Time backup.");
       const known = new Set(state.sheets.map(s => s.id));
       const added = data.sheets.filter(s => !known.has(s.id));
       state.sheets.push(...added);

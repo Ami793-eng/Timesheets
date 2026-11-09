@@ -1,4 +1,4 @@
-/* Timesheet Hub service worker
+/* FiNASh Time service worker
  * Lets the home-screen app open without signal. Network first, so updates
  * always arrive when online; falls back to the last saved copy when offline.
  */

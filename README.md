@@ -1,6 +1,10 @@
-# Timesheet Hub
+# FiNASh Time
+
+*Timesheets and paperwork* (formerly Timesheet Hub)
 
 A simple weekly timesheet web app for staff. It runs entirely in the browser and is hosted free on GitHub Pages. There's no server and no login.
+
+📄 **File names:** everything the app makes is named `FiNASh-Time_<date>_<what>`, for example `FiNASh-Time_2026-11-15_Timesheet.pdf` (the week-ending date; `_AMENDED1` or `_DRAFT` added where needed), `FiNASh-Time_2026-11-09_Study-Leave.pdf`, `FiNASh-Time_2027-01-08_Annual-Leave.ics` and `FiNASh-Time_2026-11-09_Backup.json`.
 
 ▶️ **Videos:** [30-second highlight reel](media/timesheet-hub-highlights.mp4) · [2½-minute explainer](media/timesheet-hub-explainer.mp4) — roster-filled timesheets, forms linked to your leave dates, the annual leave tracker and booker, and the pre-written emails. See `PROJECT_SUMMARY.md` for a full overview.
 

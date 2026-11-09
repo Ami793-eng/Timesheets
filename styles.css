@@ -327,6 +327,8 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
 /* Add to Home Screen */
 .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: .4rem; }
 .brand-row .brand { margin: 0; }
+.brand-wrap { min-width: 0; }
+.brand-tag { margin: 1px 0 0; font-size: .78rem; font-weight: 500; opacity: .85; letter-spacing: .01em; }
 .install-btn {
   appearance: none; border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.14); color: inherit;
   font: inherit; font-size: .82rem; font-weight: 700; padding: .35rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap;

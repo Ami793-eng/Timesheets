@@ -1,4 +1,4 @@
-/* Timesheet Hub — swaps.js
+/* FiNASh Time — swaps.js
  * Shift swaps, personal to the user (no link to anyone else's data).
  *
  * A swap is one record holding both halves:

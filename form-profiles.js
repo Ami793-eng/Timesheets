@@ -1,4 +1,4 @@
-/* Timesheet Hub — form-profiles.js
+/* FiNASh Time — form-profiles.js
  * Made-to-measure setups for the official HSE leave forms in /forms.
  *
  * Each profile describes one PDF form:

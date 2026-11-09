@@ -1,12 +1,13 @@
-# Timesheet Hub: project summary and handover
+# FiNASh Time: project summary and handover
 
 A single document to start a new project or session from. It covers what the app does, how it's built, the business rules that were agreed, and what's still open.
 
-- **App:** Timesheet Hub, a weekly timesheet, leave and HSE form app for NAS staff (NEOC / Clinical Hub and stations).
+- **App:** **FiNASh Time** — *Timesheets and paperwork* (formerly Timesheet Hub), a weekly timesheet, leave and HSE form app for NAS staff (NEOC / Clinical Hub and stations).
+- **File names:** `FiNASh-Time_<date>_<what>.<ext>` (`appFileName()` in `app.js`): timesheets use the week-ending date (`FiNASh-Time_2026-11-15_Timesheet.pdf`, `…_AMENDED1`, `…_DRAFT`), forms the day made (`FiNASh-Time_2026-11-09_Study-Leave.pdf`), calendar files the leave start (`FiNASh-Time_2027-01-08_Annual-Leave.ics`), backups the day (`FiNASh-Time_2026-11-09_Backup.json`). Storage keys (`timesheetHub_v1`, `timesheetHubForms`) are unchanged so saved data carries over.
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.08-1` (pull requests #1–#5 merged and live; #6 adds Parent's Leave week blocks, shift swaps and the Records tab).
+- **State at handover:** app version `2026.11.09-3` (pull requests #1–#6 merged and live; #7 renames the app to FiNASh Time).
 - **Videos:** a **30-second highlight reel** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) and the **2½-minute explainer** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4), both on the live site under https://ami793-eng.github.io/Timesheets/media/ (see section 6).
 
 ---

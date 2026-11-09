@@ -1,7 +1,7 @@
-// Records the Timesheet Hub explainer: drives the app at phone size with caption overlays.
+// Records the FiNASh Time explainer: drives the app at phone size with caption overlays.
 //   node media/record-explainer.js <output folder>            → the full explainer (~2½ min)
 //   node media/record-explainer.js <output folder> --short    → the 30-second highlight reel
-//                                                                (convert it with setpts=PTS/1.35 to play at 1.35×)
+//                                                                (convert it with setpts=PTS/1.55 to play at 1.55×)
 // (serve the repo first: python3 -m http.server 8123)
 const { chromium } = require("playwright");
 const OUT = process.argv[2];
@@ -84,8 +84,8 @@ const OVERLAY = () => {
 
   // 0. Title
   await page.evaluate(short => window.__ov.card(short
-    ? `<h1>Timesheet Hub</h1><p>Your timesheet, leave and HSE forms — done in minutes</p>`
-    : `<h1>Timesheet Hub</h1><p>Weekly timesheets, leave and HSE forms — on your phone</p><span class="ov-badge">For NAS staff · works offline</span>`), SHORT);
+    ? `<h1>FiNASh Time</h1><p>Timesheets and paperwork — done in minutes</p>`
+    : `<h1>FiNASh Time</h1><p>Timesheets and paperwork — on your phone</p><span class="ov-badge">For NAS staff · works offline</span>`), SHORT);
   await wait(SHORT ? 4400 : 3800);
   await page.evaluate(() => window.__ov.card(""));
 
@@ -224,7 +224,7 @@ const OVERLAY = () => {
 
   // 9. End
   await say("");
-  await page.evaluate(() => window.__ov.card(`<h1>Timesheet Hub</h1><p>Roster-filled timesheets · leave tracker &amp; booker · HSE forms linked to your dates · pre-written emails</p><span class="ov-badge">ami793-eng.github.io/Timesheets</span>`));
+  await page.evaluate(() => window.__ov.card(`<h1>FiNASh Time</h1><p>Roster-filled timesheets · leave tracker &amp; booker · HSE forms linked to your dates · pre-written emails</p><span class="ov-badge">ami793-eng.github.io/Timesheets</span>`));
   await wait(SHORT ? 6000 : 4200);
   const v = page.video();
   await ctx.close(); await browser.close();

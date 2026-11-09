@@ -1,7 +1,7 @@
 {
-  "name": "Timesheet Hub",
-  "short_name": "Timesheets",
-  "description": "Fill in, publish and email your weekly timesheet.",
+  "name": "FiNASh Time",
+  "short_name": "FiNASh Time",
+  "description": "Timesheets and paperwork",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

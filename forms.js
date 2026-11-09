@@ -1,4 +1,4 @@
-/* Timesheet Hub — forms.js
+/* FiNASh Time — forms.js
  * Fill official (fillable) PDF forms such as the HSE HR 108 series.
  * The user adds the PDF once; it is kept on this device (IndexedDB).
  * The app reads the form's boxes, pre-fills what it knows (name, staff
@@ -250,8 +250,8 @@ async function buildFilledPdf(template, values, fields) {
   if (tooLong.length) alert("These didn't fit their boxes and were shortened — please check:\n\n• " + tooLong.join("\n• "));
   const out = await doc.save();
   const base = (template.name || "Form").replace(/\.pdf$/i, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "");
-  const who = String(state.profile.name || "").replace(/[^a-zA-Z0-9]+/g, "");
-  return new File([out], `${base}_${who}_${isoLocal(new Date())}.pdf`, { type: "application/pdf" });
+  const prof = template.profile && profileById(template.profile);
+  return new File([out], appFileName(isoLocal(new Date()), prof ? prof.title : base.replace(/_/g, "-"), "pdf"), { type: "application/pdf" });
 }
 function fd_isOn(values, fd) { return values[`__sign:${fd.name}`] !== false; }
 // Boxes set to "auto" text size fill their whole height, which looks shouted on tall boxes.
