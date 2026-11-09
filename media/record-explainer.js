@@ -8,6 +8,7 @@ const OUT = process.argv[2];
 const SHORT = process.argv.includes("--short");
 const BASE = "http://localhost:8123/index.html";
 
+const LOGO_SVG = `<svg viewBox="0 0 96 96" width="96" height="96" aria-hidden="true"><circle cx="48" cy="48" r="42" fill="none" stroke="#fff" stroke-width="6" stroke-dasharray="219 45" stroke-linecap="round"/><line x1="48" y1="12" x2="48" y2="17" stroke="#fff" stroke-width="4" stroke-linecap="round"/><line x1="84" y1="48" x2="79" y2="48" stroke="#fff" stroke-width="4" stroke-linecap="round"/><line x1="48" y1="84" x2="48" y2="79" stroke="#fff" stroke-width="4" stroke-linecap="round"/><line x1="12" y1="48" x2="17" y2="48" stroke="#fff" stroke-width="4" stroke-linecap="round"/><path d="M33 51 L44 62 L86 14" fill="none" stroke="#FF9F1C" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const OVERLAY = () => {
   const css = document.createElement("style");
   css.textContent = `
@@ -17,8 +18,8 @@ const OVERLAY = () => {
       font: 600 17px/1.35 system-ui, -apple-system, Segoe UI, sans-serif; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
     .ov-cap small { display: block; font-weight: 400; font-size: 14px; opacity: .85; margin-top: 3px; }
     .ov-card { inset: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; display: grid; place-items: center; text-align: center;
-      background: linear-gradient(160deg, #0b5f73, #0a3d4a); color: #fff; font-family: system-ui, -apple-system, sans-serif; }
-    .ov-card h1 { font-size: 34px; margin: 0 0 10px; } .ov-card p { font-size: 18px; margin: 6px 24px; opacity: .92; line-height: 1.4; }
+      background: #2D1B4E; color: #fff; font-family: system-ui, -apple-system, sans-serif; }
+    .ov-card h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 38px; margin: 0 0 10px; } .ov-card h1 span { color: #FF9F1C; } .ov-card svg { display: block; margin: 0 auto 16px; } .ov-card p { font-size: 18px; margin: 6px 24px; opacity: .92; line-height: 1.4; }
     .ov-card .ov-badge { display: inline-block; margin-top: 18px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.15); font-size: 14px; }
     .ov-mail { inset: 70px 14px auto 14px; width: auto; border-radius: 14px; background: #fff; color: #17212b; box-shadow: 0 14px 50px rgba(0,0,0,.45);
       font: 14px/1.45 system-ui, -apple-system, sans-serif; overflow: hidden; }
@@ -83,9 +84,9 @@ const OVERLAY = () => {
   const mailCard = async (m, title) => { await page.evaluate(([m, t]) => window.__ov.mail({ ...m, title: t }), [m, title]); await raise(); };
 
   // 0. Title
-  await page.evaluate(short => window.__ov.card(short
-    ? `<h1>FiNASh Time</h1><p>Timesheets and paperwork — done in minutes</p>`
-    : `<h1>FiNASh Time</h1><p>Timesheets and paperwork — on your phone</p><span class="ov-badge">For NAS staff · works offline</span>`), SHORT);
+  await page.evaluate(([short, logo]) => window.__ov.card(short
+    ? `${logo}<h1>Fi<span>NAS</span>h Time</h1><p>Time recorded right</p>`
+    : `${logo}<h1>Fi<span>NAS</span>h Time</h1><p>Time recorded right</p><span class="ov-badge">Timesheets, leave and HSE forms · for NAS staff</span>`), [SHORT, LOGO_SVG]);
   await wait(SHORT ? 4400 : 3800);
   await page.evaluate(() => window.__ov.card(""));
 
@@ -224,7 +225,7 @@ const OVERLAY = () => {
 
   // 9. End
   await say("");
-  await page.evaluate(() => window.__ov.card(`<h1>FiNASh Time</h1><p>Roster-filled timesheets · leave tracker &amp; booker · HSE forms linked to your dates · pre-written emails</p><span class="ov-badge">ami793-eng.github.io/Timesheets</span>`));
+  await page.evaluate(logo => window.__ov.card(`${logo}<h1>Fi<span>NAS</span>h Time</h1><p>Roster-filled timesheets · leave tracker &amp; booker · HSE forms linked to your dates · pre-written emails</p><span class="ov-badge">ami793-eng.github.io/Timesheets</span>`), LOGO_SVG);
   await wait(SHORT ? 6000 : 4200);
   const v = page.video();
   await ctx.close(); await browser.close();

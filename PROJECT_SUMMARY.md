@@ -2,7 +2,8 @@
 
 A single document to start a new project or session from. It covers what the app does, how it's built, the business rules that were agreed, and what's still open.
 
-- **App:** **FiNASh Time** — *Timesheets and paperwork* (formerly Timesheet Hub), a weekly timesheet, leave and HSE form app for NAS staff (NEOC / Clinical Hub and stations).
+- **App:** **FiNASh Time** — *Time recorded right* (formerly Timesheet Hub), a weekly timesheet, leave and HSE form app for NAS staff (NEOC / Clinical Hub and stations).
+- **Logo and brand:** the breakout clock tick from the *FiNASh Time Logo* design canvas (Final board): plum #2D1B4E, orange #FF9F1C, deep orange #C2410C on white; Space Grotesk Bold (bundled, `fonts/space-grotesk-bold.woff2`). Inline SVG in the header with the wordmark Fi**NAS**h Time and the tagline; light mode = white header (plum ring, deep-orange tick and NAS), dark mode = plum header (white ring, orange tick and NAS). The colour themes still change buttons and highlights; the header always uses the brand colours. App / home-screen icons in `icons/` (plum rounded square, white breakout ring, orange tick; maskable and Apple versions full-bleed).
 - **File names:** `FiNASh-Time_<date>_<what>.<ext>` (`appFileName()` in `app.js`): timesheets use the week-ending date (`FiNASh-Time_2026-11-15_Timesheet.pdf`, `…_AMENDED1`, `…_DRAFT`), forms the day made (`FiNASh-Time_2026-11-09_Study-Leave.pdf`), calendar files the leave start (`FiNASh-Time_2027-01-08_Annual-Leave.ics`), backups the day (`FiNASh-Time_2026-11-09_Backup.json`). Storage keys (`timesheetHub_v1`, `timesheetHubForms`) are unchanged so saved data carries over.
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)

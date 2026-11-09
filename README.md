@@ -1,6 +1,8 @@
 # FiNASh Time
 
-*Timesheets and paperwork* (formerly Timesheet Hub)
+*Time recorded right* (formerly Timesheet Hub)
+
+Logo: the breakout clock tick (plum #2D1B4E, orange #FF9F1C, deep orange #C2410C; Space Grotesk Bold), from the *FiNASh Time Logo* design canvas. It's an inline SVG in the header — on white in light mode, on plum in dark mode — and the home-screen / app icons in `icons/`.
 
 A simple weekly timesheet web app for staff. It runs entirely in the browser and is hosted free on GitHub Pages. There's no server and no login.
 
