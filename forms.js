@@ -337,7 +337,7 @@ async function renderForms() {
         <div class="eyebrow">Filled form</div>
         <h3>${esc(r.templateName)}</h3>
         ${periods.length ? `<div class="leave-note">On your timesheets: ${describePeriods(periods)} <button type="button" class="link-btn" data-form-unleave="${esc(r.id)}">Remove</button></div>` : ""}
-        <div class="muted">${esc(new Date(r.updatedAt).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}${r.sends?.length ? ` · sent ${esc(new Date(r.sends.at(-1)).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}` : ""}</div>
+        <div class="muted">${esc(new Date(r.updatedAt).toLocaleString("en-IE", { dateStyle: "short", timeStyle: "short" }))}${r.sends?.length ? ` · ${esc(sentSummary(r.sends.at(-1)))}` : ""}</div>
       </div>
       <div class="form-item__actions">
         <button class="btn btn--small" data-form-open="${esc(r.id)}">Open</button>
@@ -469,10 +469,10 @@ function renderFormEditor() {
       <p class="muted" id="formOutName"></p>
       <p class="hint leave-note" id="formLeave" hidden></p>
       <div class="actions">
-        <button type="button" class="btn btn--primary" data-form-share>Email with PDF attached</button>
+        <button type="button" class="btn btn--primary" data-form-share>Email to manager…</button>
         <button type="button" class="btn" data-form-download>Download PDF</button>
       </div>
-      <p class="hint">Email: pick your email app — the PDF is attached. Your default recipients' addresses are copied, so press and hold To and tap Paste.</p>
+      <p class="hint">Email to manager: tick who it goes to — the email says “Hello” to them by first name, the PDF is attached and their addresses are copied to paste in. When it's sent it's logged with the time, and the timesheet notes the form was emailed.</p>
     </div>`;
 }
 
@@ -492,6 +492,11 @@ async function saveAndMake() {
   if (!rec) { rec = { id: newId(), templateId: fx.open.id, templateName: fx.open.name, createdAt: now, sends: [] }; state.forms.push(rec); fx.recordId = rec.id; }
   rec.values = { ...fx.values };
   if (fx.link) rec.link = fx.link;
+  // The leave this form is for, so the timesheet can note when it was emailed.
+  const dates = formLeaveDates();
+  const prof = fx.open.profile && profileById(fx.open.profile);
+  const type = fx.link?.type || prof?.leaveType || formLeaveRanges(fx.values, fx.open.profile)?.[0]?.type || "";
+  rec.leave = dates && type ? { type, from: dates.from, to: dates.to } : null;
   rec.updatedAt = now;
   saveState();
   try {
@@ -565,8 +570,12 @@ function formLeaveDates() {
 // The email for a filled form, e.g.
 //   Subject: Andrew Mitchell Study Leave Dec 26   (the month the leave starts, else this month)
 //   Body:    Hello / Please find Study Leave application attached for 7/12/26. / Regards / <Name>
-function formEmail() {
+// rec: the people ticked in the email box ({ to: [...] }), for "Hello <first names>".
+// snap: the form being sent (defaults to the one open).
+function formEmail(rec = { to: [] }, snap = null) {
+  if (snap) { const keep = { open: fx.open, values: fx.values, link: fx.link }; Object.assign(fx, snap); try { return formEmail(rec); } finally { Object.assign(fx, keep); } }
   const p = state.profile;
+  const names = (rec.to || []).map(r => firstName(r.name)).filter(Boolean);
   const prof = fx.open.profile && profileById(fx.open.profile);
   const type = prof ? prof.title : fx.open.name;
   const dates = formLeaveDates();
@@ -576,29 +585,41 @@ function formEmail() {
   const forDates = dates ? ` for ${short(dates.from)}${dates.to !== dates.from ? ` – ${short(dates.to)}` : ""}` : "";
   return {
     subject: `${p.name} ${type} ${when}`,
-    body: `Hello\n\nPlease find ${type} application attached${forDates}.\n\nRegards\n${p.name}`
+    body: `${names.length ? `Hello ${joinNames(names)}` : "Hello"}\n\nPlease find ${type} application attached${forDates}.\n\nRegards\n${p.name}`
   };
 }
 
-// Called straight from the tap so phones allow sharing.
-function shareForm() {
+// "Email to manager": the same email box as timesheets — tick who it goes to, it says "Hello <first names>",
+// copies the addresses, attaches the PDF, and logs who it went to and when.
+function openFormSend() {
   if (!fx.file) return toast("Tap “Save & make PDF” first.", true);
-  const p = state.profile;
-  const { subject, body } = formEmail();
-  const emails = [...(p.contacts || []).filter(c => c.default && c.email).map(c => c.email), ...(p.meDefault && p.meEmail ? [p.meEmail] : [])];
-  if (emails.length && navigator.clipboard) navigator.clipboard.writeText(emails.join(", ")).catch(() => {});
   const rec = (state.forms || []).find(r => r.id === fx.recordId);
-  const log = () => { if (rec) { rec.sends = [...(rec.sends || []), new Date().toISOString()]; saveState(); renderForms(); } };
-  if (navigator.canShare && navigator.share && navigator.canShare({ files: [fx.file] })) {
-    navigator.share({ files: [fx.file], title: subject, text: body })
-      .then(() => { log(); toast(emails.length ? "Addresses copied — press and hold To, then Paste." : "Shared."); })
-      .catch(err => { if (err.name !== "AbortError") alert("Couldn't share: " + err.message); });
-    return;
-  }
-  downloadFile(fx.file);
-  log();
-  setTimeout(() => { location.href = `mailto:${emails.map(encodeURIComponent).join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; }, 600);
-  toast("Email opened — attach the PDF from Downloads.");
+  if (!rec) return;
+  const file = fx.file;
+  const snapshot = { open: fx.open, values: { ...fx.values }, link: fx.link };
+  openSendTarget({
+    key: `form:${rec.id}`,
+    title: "Email form",
+    what: `${fx.open.name} · ${file.name}`,
+    attachName: file.name,
+    files: () => Promise.resolve([file]),
+    text: r => formEmail(r, snapshot),
+    sends: rec.sends || [],
+    record: r => recordFormSend(rec, r)
+  });
+}
+// "Emailed to Steph Murphy 09/11/26 14:32" (older sends only kept the time).
+function sentSummary(x) {
+  const at = x.at || x;
+  const names = typeof x === "object" ? sentToNames(x) : [];
+  return `emailed${names.length ? ` to ${joinNames(names)}` : ""} ${sentStamp(at)}`;
+}
+function recordFormSend(rec, r) {
+  rec.sends = [...(rec.sends || []), r];
+  rec.updatedAt = r.at;
+  saveState();
+  renderForms();
+  if (currentSheet()) renderTimesheet();       // the leave day shows "Emailed to …"
 }
 
 function initForms() {
@@ -630,7 +651,7 @@ function initForms() {
     }
     else if (d.formClose !== undefined) { readEditorValues(); $("formEditor").hidden = true; }
     else if (d.formMake !== undefined) saveAndMake();
-    else if (d.formShare !== undefined) shareForm();
+    else if (d.formShare !== undefined) openFormSend();
     else if (d.formDownload !== undefined) { if (fx.file) downloadFile(fx.file); }
   });
   document.addEventListener("change", e => {

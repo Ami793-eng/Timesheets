@@ -8,7 +8,7 @@ A single document to start a new project or session from. It covers what the app
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.09-3` (pull requests #1–#6 merged and live; #7 renames the app to FiNASh Time).
+- **State at handover:** app version `2026.11.09-5` (pull requests #1–#7 merged and live; #8 adds form emailing through the timesheet email box and form-sent notes on timesheets).
 - **Videos:** a **30-second highlight reel** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) and the **2½-minute explainer** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4), both on the live site under https://ami793-eng.github.io/Timesheets/media/ (see section 6).
 
 ---
@@ -47,7 +47,9 @@ Every email is written for you; you just send it.
 | **Timesheet** | `Andrew Mitchell Timesheet 15/11/2026` (+ ` AMENDED n`) | Hello <first names> / Please find timesheet attached / Kind Regards / <Name> |
 | **Leave request** | `Andrew Mitchell Annual Leave 12/12/2026` (or a date range) | Hello / I would like to request Annual Leave for the following: / each shift with times and hours / Total: 36h / note / Kind Regards / <Name> / Personnel No |
 | **Leave cancellation** | same, ending ` - CANCELLATION` | I would like to cancel my Annual Leave for the following: … |
-| **HSE form** | `Andrew Mitchell Parent's Leave Nov 26` (month the leave starts) | Hello / Please find Parent's Leave application attached for 9/11/26 – 15/11/26. / Regards / <Name> |
+| **HSE form** | `Andrew Mitchell Parent's Leave Nov 26` (month the leave starts) | Hello <first names of the ticked managers> / Please find Parent's Leave application attached for 9/11/26 – 15/11/26. / Regards / <Name> |
+
+- **Forms use the same email box as timesheets** (`openSendTarget()` in `app.js`; forms call it from `openFormSend()`): ticked recipients, "Hello <first names of the ticked managers>", addresses copied, PDF attached, and each send logged as `{ at, to, cc, method }` on the filled form. The form records the leave it's for (`rec.leave = { type, from, to }`), so the timesheet's leave day shows "Emailed to Steph 09/11/26 14:32" and the notes column (M) on the first day of that leave in the week reads "Study Leave form emailed to Steph Murphy 09/11/26 14:32" (`formSentNote()`).
 
 - Timesheets and forms go through the phone's **share sheet with the PDF attached**; recipients (ORM, DCM, Supervisor, Me) are copied ready to paste. Leave emails open the mail app with **To, CC, subject and body filled in**.
 - Every send is logged (Records history, filled forms, leave requests).

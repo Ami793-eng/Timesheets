@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.09-4";
+const APP_VERSION = "2026.11.09-5";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -463,12 +463,43 @@ function excelCells(d) {
       : `Late start ${c.aFrom}${d.lateNote.trim() ? ` – ${d.lateNote.trim()}` : ""}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
+  // "Study Leave form emailed to Steph Murphy 09/11/26 14:32" — on the first day of that leave in the week.
+  const formNote = formSentNote(d);
+  if (formNote) c.otReason = c.otReason ? `${c.otReason}; ${formNote}` : formNote;
   const isSwap = d.rosterLeave === "Shift Swap" || d.actualLeave === "Shift Swap" || !!d.swap;
   if (isSwap && d.swapNote.trim()) {
     const note = d.swap ? `Shift Swap: ${d.swapNote.trim()}` : `Shift Swap: ${d.swapNote.trim()}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   return c;
+}
+
+/* ---------- leave forms emailed → timesheet notes ---------- */
+
+// The filled form for a day's leave (by its leave type and dates), and its latest send.
+function formSentFor(d) {
+  const type = typeof dayLeaveType === "function" ? dayLeaveType(d) : "";
+  if (!type) return null;
+  for (const r of (state.forms || []).slice().reverse()) {
+    const lv = r.leave || r.link;
+    if (!lv || lv.type !== type || !(lv.from <= d.date && d.date <= lv.to)) continue;
+    const sends = (r.sends || []).filter(x => x && typeof x === "object" && x.at);
+    if (!sends.length) continue;
+    return { form: r, leave: lv, send: sends.at(-1) };
+  }
+  return null;
+}
+const sentStamp = iso => { const t = new Date(iso); return `${shortDate(isoLocal(t))}/${String(t.getFullYear()).slice(2)} ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`; };
+function sentToNames(send) { return (send.to || []).map(r => r.name || r.email).filter(Boolean); }
+function formSentNote(d) {
+  const f = formSentFor(d);
+  if (!f) return "";
+  // Only the first day of that leave in the week carries the note (rest days in between are skipped).
+  const start = f.leave.from > mondayOf(d.date) ? f.leave.from : mondayOf(d.date);
+  const leaveOn = iso => state.sheets.some(s => s.days.some(x => x.date === iso && dayLeaveType(x) === f.leave.type));
+  for (let t = parseIso(start); isoLocal(t) < d.date; t.setDate(t.getDate() + 1)) if (leaveOn(isoLocal(t))) return "";
+  const names = sentToNames(f.send);
+  return `${f.leave.type} form emailed${names.length ? ` to ${joinNames(names)}` : ""} ${sentStamp(f.send.at)}`;
 }
 
 function daySummary(d) {
@@ -1253,14 +1284,16 @@ function leaveFormRow(d, i) {
   if (!p) return "";
   const run = p.leaveWeek ? weekBlock(leaveRun(sheet, i)) : leaveRun(sheet, i);
   const rec = linkedLeaveForm(sheet, run);
-  const sent = rec?.sends?.length ? new Date(rec.sends.at(-1)) : null;
+  const last = rec?.sends?.length ? rec.sends.at(-1) : null;
+  const sent = last ? new Date(last.at || last) : null;
+  const sentTo = last && typeof last === "object" ? sentToNames(last).map(n => n.split(" ")[0]) : [];
   const span = run.from === run.to ? shortDate(run.from) : `${shortDate(run.from)} – ${shortDate(run.to)}`;
   return `
     <div class="leave-form">
       <div class="leave-form__text">
         <strong>${esc(p.code)} ${esc(p.title)} form</strong>
         <span class="muted">${span} · ${p.leaveWeek ? "week block" : `${run.days} day${run.days === 1 ? "" : "s"}`}</span>
-        ${rec ? `<span class="chip2 chip-leave">${sent ? `Sent ${esc(sent.toLocaleDateString("en-IE", { day: "2-digit", month: "2-digit" }))}` : "Filled in"}</span>` : ""}
+        ${rec ? `<span class="chip2 chip-leave">${sent ? `Emailed${sentTo.length ? ` to ${esc(joinNames(sentTo))}` : ""} ${esc(sentStamp(sent.toISOString()))}` : "Filled in"}</span>` : ""}
       </div>
       <button type="button" class="btn btn--small" data-leave-form="${i}">${rec ? "Open form" : "Fill in the form"}</button>
     </div>`;
@@ -2494,15 +2527,15 @@ function emailText(sheet, rec = { to: [], cc: [] }) {
 }
 
 function renderSendPreview() {
-  const sheet = state.sheets.find(s => s.id === ui.sendId);
-  if (!sheet) return;
+  const t = ui.sendTarget;
+  if (!t) return;
   const rec = chosenRecipients();
-  const { subject, body } = emailText(sheet, rec);
+  const { subject, body } = t.text(rec);
   const line = (k, arr) => arr.length ? `<div><span class="k">${k}</span> ${esc(arr.map(r => r.email).join(", "))}</div>` : "";
   $("sendPreview").innerHTML = `
     ${line("To:", rec.to)}${line("CC:", rec.cc)}
     <div><span class="k">Subject:</span> ${esc(subject)}</div>
-    <div><span class="k">Attach:</span> ${esc(fileName(sheet).replace(/\.xlsx$/, ".pdf"))}</div>
+    <div><span class="k">Attach:</span> ${esc(t.attachName)}</div>
     <pre>${esc(body)}</pre>`;
 }
 
@@ -2513,12 +2546,29 @@ function sendLine(rec) {
   return `${names} · ${fmtWhen(rec.at)}`;
 }
 
+// The email dialog sends a timesheet or a filled form (a "target"):
+//   { key, title, what, attachName, files: () => Promise<File[]>, text: rec => { subject, body }, sends: [...], record: rec => … }
 function openSendDialog(id) {
   const sheet = state.sheets.find(s => s.id === id);
   if (!sheet) return;
-  ui.sendId = id;
-  const p = state.profile;
-  $("sendWhat").textContent = `Week ending ${displayDate(sheet.weekEnding)}${amendLabel(sheet) ? ` · ${amendLabel(sheet)}` : ""} · ${fileName(sheet).replace(/\.xlsx$/, ".pdf")}`;
+  openSendTarget({
+    key: id,
+    title: "Email timesheet",
+    what: `Week ending ${displayDate(sheet.weekEnding)}${amendLabel(sheet) ? ` · ${amendLabel(sheet)}` : ""} · ${fileName(sheet).replace(/\.xlsx$/, ".pdf")}`,
+    attachName: fileName(sheet).replace(/\.xlsx$/, ".pdf"),
+    files: () => buildFiles(sheet, chosenFormats()),
+    text: rec => emailText(sheet, rec),
+    sends: sheet.sends || [],
+    record: rec => recordSend(sheet, rec)
+  });
+}
+
+function openSendTarget(t) {
+  ui.sendTarget = t;
+  ui.sendId = t.key;
+  const id = t.key;
+  $("sendTitle").textContent = t.title;
+  $("sendWhat").textContent = t.what;
   const opts = recipientOptions();
   const group = (title, items, emptyText) => `
     <div class="send-group">
@@ -2550,7 +2600,7 @@ function openSendDialog(id) {
   $("sendEmailBtn").className = canShare ? "btn" : "btn btn--primary";
   [$("sendShareBtn"), $("sendEmailBtn")].forEach(b => { b.disabled = true; });
   $("sendHow").textContent = "Preparing the PDF…";
-  buildFiles(sheet, chosenFormats()).then(files => {
+  t.files().then(files => {
     if (ui.sendId !== id) return;
     ui.sendFiles = files;
     [$("sendShareBtn"), $("sendEmailBtn")].forEach(b => { b.disabled = false; });
@@ -2558,7 +2608,7 @@ function openSendDialog(id) {
       ? "Email with PDF attached: pick your email app — the PDF, subject and message are filled in. Phones don't let apps fill in the To box, so the addresses are copied for you: press and hold the To box and tap Paste."
       : "Your email app opens with the addresses and subject filled in. The PDF is downloaded at the same time — attach it from Downloads, then press Send.";
   }).catch(err => { $("sendHow").textContent = "The PDF couldn't be created: " + err.message; });
-  const sends = sheet.sends || [];
+  const sends = (t.sends || []).filter(r => r && typeof r === "object" && r.at);
   $("sendLog").innerHTML = sends.length ? `
     <div class="send-log"><strong>Previously sent</strong>
       <ul>${sends.slice().reverse().map(r => `<li>${esc(sendLine(r))}</li>`).join("")}</ul></div>` : "";
@@ -2587,11 +2637,11 @@ function recordSend(sheet, rec) {
 
 // Called straight from the tap — no waiting before navigator.share, or phones block it.
 function sendSheet(method) {
-  const sheet = state.sheets.find(s => s.id === ui.sendId);
+  const t = ui.sendTarget;
   const files = ui.sendFiles;
-  if (!sheet || !files) return toast("Still preparing the PDF — try again in a second.", true);
+  if (!t || !files) return toast("Still preparing the PDF — try again in a second.", true);
   const rec = { ...chosenRecipients(), at: new Date().toISOString(), method, files: files.map(f => f.name) };
-  const { subject, body } = emailText(sheet, rec);
+  const { subject, body } = t.text(rec);
   const toList = rec.to.map(r => r.email);
   const ccList = rec.cc.map(r => r.email);
 
@@ -2600,7 +2650,7 @@ function sendSheet(method) {
     if (addresses && navigator.clipboard) navigator.clipboard.writeText(addresses).catch(() => {});
     navigator.share({ files, title: subject, text: body })
       .then(() => {
-        recordSend(sheet, rec);
+        t.record(rec);
         toast(addresses ? "Addresses copied — in your email, press and hold To, then tap Paste." : "Shared with the PDF attached.");
       })
       .catch(err => {
@@ -2614,7 +2664,7 @@ function sendSheet(method) {
   downloadFiles(files);
   const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(body)}`];
   if (ccList.length) params.unshift(`cc=${ccList.map(encodeURIComponent).join(",")}`);
-  recordSend(sheet, rec);
+  t.record(rec);
   const url = `mailto:${toList.map(encodeURIComponent).join(",")}?${params.join("&")}`;
   console.info("Opening email:", url);
   setTimeout(() => { window.location.href = url; }, 300 + files.length * 600);
