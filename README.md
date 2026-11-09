@@ -67,7 +67,7 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
 - **Publish = locked PDF:** publishing creates a **PDF only**. It is drawn straight from the filled-in Excel template, using the template's own colours, column widths, merged cells, borders, fonts, logo and notes. The PDF is **locked**: it opens without a password and can be **printed and signed**, but normal PDF readers won't let the timesheet's content be edited or copied. For example, a manager can add a signature in the Line Manager box with Adobe Fill & Sign, or print it and sign by hand. This is a strong deterrent rather than unbreakable protection.
-  - **Preview PDF** on a draft lets you check it first.
+  - **Preview PDF** on a draft lets you check it first. On iPhone and computers it opens in a new tab; Android phones (no built-in PDF viewer in Chrome) download the draft PDF to open from your downloads.
   - **Revise** in Records → Timesheets makes a corrected version (AMENDED 1, 2, …).
   - **Excel:** the Records → Timesheets card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
 - **Attachments:** on phones, **Email with PDF attached** opens your phone's share sheet with the PDF already attached. Pick your email app, then paste the copied addresses into To. **Open email** fills in the addresses and subject, but the PDF has to be attached by hand from Downloads, because browsers can't attach files to an email draft themselves.

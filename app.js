@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.09-1";
+const APP_VERSION = "2026.11.09-2";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -1988,12 +1988,20 @@ async function previewDownload() {
   if (!sheet) return;
   const p = state.profile;
   const snapshot = { ...structuredClone(sheet), staff: { name: p.name, number: p.number, base: profileBase(), signatureText: p.signatureText, signatureImage: p.signatureImage } };
-  const win = window.open("", "_blank");
+  // Browsers that can show a PDF (iPhone, computers) get it in a new tab. Android Chrome has no
+  // built-in PDF viewer — a tab would stay blank — so there the draft is downloaded to open in the phone's viewer.
+  const canShow = navigator.pdfViewerEnabled === true && !/Android/i.test(navigator.userAgent);
+  const win = canShow ? window.open("", "_blank") : null;
   try {
     const file = await buildPdfFile(snapshot, "_DRAFT");
-    const url = URL.createObjectURL(file);
-    if (win) win.location.href = url; else downloadFile(file);
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (win) {
+      const url = URL.createObjectURL(file);
+      win.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } else {
+      downloadFile(file);
+      toast("Draft PDF downloaded — open it from your downloads to check it.");
+    }
   } catch (err) {
     win?.close();
     console.error(err);
