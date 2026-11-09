@@ -34,7 +34,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - **Leave + part shift / meeting** (in the Leave list): for example you were rostered on a 19:00–07:00 night, took leave, but worked a 1-hour meeting. Choose the leave type and the time you worked; it can be outside the shift hours (e.g. a 10:00–11:00 meeting). An optional note such as "Meeting" can be added. The app works out the leave: 12h − 1h = **11h**.
     - **By default** the Roster row keeps the shift times (19:00–07:00), so the length of the shift is clear. The Actual row shows the hour worked (10:00–11:00), and column M reads "Annual Leave 11h – Meeting 10:00–11:00".
     - **"Show the leave in the Roster row"** (tick box): the Roster row shows **Annual Leave** instead, and the note records the shift times: "Annual Leave 11h (rostered 19:00–07:00) – Meeting 10:00–11:00".
-  - **Leave:** Annual Leave, Parental Leave, Self-Certified or Certified Sick Leave, Force Majeure, Study Leave or Shift Swap. The leave type goes in the Actual row.
+  - **Leave:** Annual Leave, Parental Leave, Parent's Leave, Self-Certified or Certified Sick Leave, Force Majeure, Study Leave or Shift Swap. The leave type goes in the Actual row.
   - **Standard-day leave** (e.g. Interview Leave, Marriage Leave): only a standard day is paid (7h 48m by default), so on a 12h shift the app asks how the other **4h 12m** is covered:
     - **Annual Leave** → note "Interview Leave 7h 48m + Annual Leave 4h 12m"
     - **TOIL** → note "Interview Leave 7h 48m + TOIL 4h 12m"
@@ -58,6 +58,7 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Leave types:**
   - Annual Leave
   - Parental Leave
+  - Parent's Leave (a week block)
   - Self-Certified Sick Leave
   - Certified Sick Leave
   - Force Majeure
@@ -67,13 +68,13 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Drafts:** these autosave as you type.
 - **Publish = locked PDF:** publishing creates a **PDF only**. It is drawn straight from the filled-in Excel template, using the template's own colours, column widths, merged cells, borders, fonts, logo and notes. The PDF is **locked**: it opens without a password and can be **printed and signed**, but normal PDF readers won't let the timesheet's content be edited or copied. For example, a manager can add a signature in the Line Manager box with Adobe Fill & Sign, or print it and sign by hand. This is a strong deterrent rather than unbreakable protection.
   - **Preview PDF** on a draft lets you check it first.
-  - **Revise** in the Library makes a corrected version (AMENDED 1, 2, …).
-  - **Excel:** the Library card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
+  - **Revise** in Records → Timesheets makes a corrected version (AMENDED 1, 2, …).
+  - **Excel:** the Records → Timesheets card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
 - **Attachments:** on phones, **Email with PDF attached** opens your phone's share sheet with the PDF already attached. Pick your email app, then paste the copied addresses into To. **Open email** fills in the addresses and subject, but the PDF has to be attached by hand from Downloads, because browsers can't attach files to an email draft themselves.
 - **Email recipients:** set them up in My details, under the signature.
   - **ORM** (Operational Resource Manager), **DCM** (Duty Control Manager) and **Supervisors:** add as many as you need, each with a name and email. Tick *Default* on the people usually sent to.
   - **Me:** your own email, sent as *CC*.
-- **Sending:** after publishing, or from the Library, everyone is listed under ORM, DCM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
+- **Sending:** after publishing, or from Records → Timesheets, everyone is listed under ORM, DCM, Supervisor and Me. Tick exactly who should get it this time and check the preview. Your email app then opens with everything filled in, and the Excel file is downloaded for you to attach. On phones there is also *Share file*, which attaches the file directly and copies the addresses so you can paste them in.
 - **Email template:**
   ```
   Subject: <Name> Timesheet <week ending>
@@ -93,7 +94,16 @@ Staff fill in their week (they can save it and come back during the week), publi
 
   The earlier version is marked *superseded*.
 - **Sent log:** each timesheet records **"Sent by email to John Campbell (ORM), Joe Bloggs (DCM), Me · date and time"**. It's shown on the library card and in the History with the full addresses. The time is recorded when you open the email from the app; the app can't see whether you then pressed Send in your mail app.
-- **Library:** search and filter your timesheets (including by who they were sent to), download one again, or email it again.
+- **Records** (was *Library*) has three views at the top:
+  - **Timesheets:** search and filter your timesheets (including by who they were sent to), download one again, email it again or revise it.
+  - **Forms:** the HSE forms you've filled in, to reopen, resend or change.
+  - **Swaps:** open swaps in two groups — **I owe** and **Owed to me** — with completed swaps below as history. Tap a swap to view or edit it, add the other half, or delete it. The Records tab shows a badge with the number of open swaps.
+- **Shift swaps** (personal to you; nothing is shared with the colleague's app):
+  - **Logging one:** on a rostered shift choose **What happened → Swapped off**, on a rest day tap **⇄ Swapped on**, or use **⇄ Record a shift swap** under any day (or **＋ Record a swap** in Records → Swaps).
+  - **Details:** direction (swapped off = I gave my shift away; swapped on = I work a colleague's shift), the colleague's name (just a label), the shift being changed (your rostered shift is filled in for a swap off; pick the station and shift for a swap on), and optionally the other half — its date, station and shift. Leave the other half blank if the payback date isn't known yet.
+  - **One record, both halves:** each swap is saved once with its own ID. When you open the week that holds the other half, it's filled in automatically with the opposite direction and the colleague's name. Editing or deleting from either half updates the record and both draft timesheets; a deleted half goes back to what your roster says. Published timesheets aren't changed (the app tells you which to revise).
+  - **On the timesheet:** a swapped-off day keeps your rostered shift in the Roster row and records *Shift Swap* in the Actual row; a swapped-on day shows the colleague's shift. The notes column reads e.g. "Shift Swap: Swapped off – Pat Murphy (on 18/11)".
+  - **Owed:** a swap off with no shift back yet means you owe that colleague a shift; a swap on with no swap off yet means a shift is owed to you. Once both halves are recorded the swap is complete.
 - **History:** each sheet keeps a log of what happened to it and when.
 - **Add to Home Screen:** a button in the header installs the app with its own icon, and it opens full screen.
   - **Android / Chrome:** installs in one tap.
@@ -111,8 +121,8 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Forms:** a separate tab for filling in official HSE forms, such as the HR 108 leave forms.
   - **Built-in forms:** 18 HSE forms are bundled in the `forms/` folder and listed at the top of the tab. Tap one to fill it in; nothing to download. They are: HR 108 (a) Adoptive, (c) Carer's, (d) Bereavement, (e) Examination, (f) Force Majeure, (g) Health & Safety, (h) Jury Service, (i) Maternity, (j) Parental, (k) Paternity, (m) Serious Physical Assault, (n) Marriage, (p) Study, (q) Trade Union, (r) Carry-over of Annual Leave, (s) Interview, (t) Parent's and (u) Unpaid Leave for Medical Care.
     - **HSE ↗** beside each opens that form on the HSE site, to check for a newer version. If there is one, download it and tap **Add a form**: the app recognises it and uses your copy instead of the built-in one.
-  - **From a leave day:** a day of Study, Examination, Interview, Marriage, Parental or Force Majeure leave shows a **Fill in the form** button with the matching HSE form. The leave's from / to dates and number of days are filled in (consecutive leave days count as one stretch; rest days in between don't break it). Once made, the day shows *Filled in* or *Sent dd/mm* and the button reopens that form.
-  - **Long leave onto timesheets:** saving a **Maternity Leave** (HR 108i) or **Parental Leave** (HR 108j) form puts its dates on your timesheets. Every rostered shift in those dates is marked as *Maternity Leave*, *Additional Maternity Leave* or *Parental Leave*: on draft timesheets straight away, and on timesheets you start later for those weeks. Rest days stay rest days, days you've already changed by hand are left alone, and published timesheets are never changed (the app lists them so you can **Revise**). Postponed maternity dates and the agreed parental dates (when those sections are ticked) are used instead of the originals. The filled form shows "On your timesheets: …" with **Remove**, and deleting the form also takes its leave off.
+  - **From a leave day:** a day of Study, Examination, Interview, Marriage, Parental, Parent's or Force Majeure leave shows a **Fill in the form** button with the matching HSE form. The leave's from / to dates and number of days are filled in (consecutive leave days count as one stretch; rest days in between don't break it). Once made, the day shows *Filled in* or *Sent dd/mm* and the button reopens that form.
+  - **Long leave onto timesheets:** saving a **Maternity Leave** (HR 108i), **Parental Leave** (HR 108j) or **Parent's Leave** (HR 108t, each week) form puts its dates on your timesheets. Parent's Leave is a week block: from a leave day, HR 108(t) gets the whole 7 days in *Week one*. Every rostered shift in those dates is marked as *Maternity Leave*, *Additional Maternity Leave* or *Parental Leave*: on draft timesheets straight away, and on timesheets you start later for those weeks. Rest days stay rest days, days you've already changed by hand are left alone, and published timesheets are never changed (the app lists them so you can **Revise**). Postponed maternity dates and the agreed parental dates (when those sections are ticked) are used instead of the originals. The filled form shows "On your timesheets: …" with **Remove**, and deleting the form also takes its leave off.
   - **Other forms:** links to forms that aren't built in (HR 108(b), (l), (o), HR 110, HR 117) are under *Other HSE forms*. Download a fillable PDF and tap **Add a form**. It stays on the device (IndexedDB) for reuse.
   - **Fill it in:** the app reads the form's fillable boxes in page order. It pre-fills name (or first name and surname), personnel number, grade, department, work location, email, phone and today's date from My details. You fill in the rest; date boxes have a date picker. Manager and HR sections are grouped separately and left blank.
   - **Signature:** your signature is placed in the employee signature box. Manager signature boxes are left blank.

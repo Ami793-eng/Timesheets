@@ -6,7 +6,7 @@ A single document to start a new project or session from. It covers what the app
 - **Owner:** Andrew Mitchell
 - **Repo:** https://github.com/Ami793-eng/Timesheets (branch `main`)
 - **Live site:** https://ami793-eng.github.io/Timesheets/ (GitHub Pages: Settings → Pages → `main`, `/ (root)`)
-- **State at handover:** app version `2026.11.05-10`, merged to `main` and live (pull requests #1–#4).
+- **State at handover:** app version `2026.11.08-1` (pull requests #1–#5 merged and live; #6 adds Parent's Leave week blocks, shift swaps and the Records tab).
 - **Videos:** a **30-second highlight reel** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) and the **2½-minute explainer** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4), both on the live site under https://ami793-eng.github.io/Timesheets/media/ (see section 6).
 
 ---
@@ -22,8 +22,8 @@ The five things that make the app more than a timesheet form:
 - You still confirm what actually happened each day (finished early, extended duty, overtime, subsistence…).
 
 ### 2. Forms linked to the dates in your timesheets — both ways
-- **Timesheet → form:** a day of Study, Examination, Interview, Marriage, Parental or Force Majeure leave shows **"Fill in the form"** with the right HSE form. It opens with your details, the leave's **from / to dates and number of days** already filled in (consecutive leave days count as one stretch). Afterwards the day shows *Filled in* or *Sent dd/mm*, and the button reopens that form.
-- **Form → timesheets:** saving an **HR 108(i) Maternity** or **HR 108(j) Parental** form puts its dates on your timesheets: every rostered shift in them becomes *Maternity Leave*, *Additional Maternity Leave* or *Parental Leave*, on drafts now and on timesheets you start later.
+- **Timesheet → form:** a day of Study, Examination, Interview, Marriage, Parental, Parent's or Force Majeure leave shows **"Fill in the form"** with the right HSE form. It opens with your details, the leave's **from / to dates and number of days** already filled in (consecutive leave days count as one stretch; **Parent's Leave is a week block**, so HR 108(t) gets the whole 7 days in *Week one*). Afterwards the day shows *Filled in* or *Sent dd/mm*, and the button reopens that form.
+- **Form → timesheets:** saving an **HR 108(i) Maternity**, **HR 108(j) Parental** or **HR 108(t) Parent's Leave** form (each week) puts its dates on your timesheets: every rostered shift in them becomes *Maternity Leave*, *Additional Maternity Leave*, *Parental Leave* or *Parent's Leave*, on drafts now and on timesheets you start later.
 - **18 official HSE forms built in**, each set up box by box, signed with your signature.
 
 ### 3. Annual leave tracker
@@ -45,10 +45,10 @@ Every email is written for you; you just send it.
 | **Timesheet** | `Andrew Mitchell Timesheet 15/11/2026` (+ ` AMENDED n`) | Hello <first names> / Please find timesheet attached / Kind Regards / <Name> |
 | **Leave request** | `Andrew Mitchell Annual Leave 12/12/2026` (or a date range) | Hello / I would like to request Annual Leave for the following: / each shift with times and hours / Total: 36h / note / Kind Regards / <Name> / Personnel No |
 | **Leave cancellation** | same, ending ` - CANCELLATION` | I would like to cancel my Annual Leave for the following: … |
-| **HSE form** | `Andrew Mitchell Parental Leave Nov 26` (month the leave starts) | Hello / Please find Parental Leave application attached for 9/11/26 – 13/11/26. / Regards / <Name> |
+| **HSE form** | `Andrew Mitchell Parent's Leave Nov 26` (month the leave starts) | Hello / Please find Parent's Leave application attached for 9/11/26 – 15/11/26. / Regards / <Name> |
 
 - Timesheets and forms go through the phone's **share sheet with the PDF attached**; recipients (ORM, DCM, Supervisor, Me) are copied ready to paste. Leave emails open the mail app with **To, CC, subject and body filled in**.
-- Every send is logged (Library history, filled forms, leave requests).
+- Every send is logged (Records history, filled forms, leave requests).
 
 ---
 
@@ -57,7 +57,7 @@ Every email is written for you; you just send it.
 A static web app (no server, no login) that staff use on their phone:
 
 1. **Timesheet:** the week, pre-filled from the roster. Produces the official **NAS timesheet** (from `template.xlsx`) as a locked **PDF**, emailed to managers.
-2. **Library:** every published timesheet with its history, who it was emailed to and when, and amended versions.
+2. **Records** (was Library): **Timesheets** (published timesheets, history, sends, amended versions), **Forms** (filled HSE forms) and **Swaps** (I owe / Owed to me / completed), with a badge for open swaps.
 3. **Leave:** book leave by email, put it on the timesheets and calendar, track annual leave hours and the structured leave blocks.
 4. **Forms:** the official **HSE HR forms** (18 built in), filled with saved details and signature, linked to timesheet leave.
 5. **My details:** profile, signature, roster (fixed or non-rostered), email recipients, leave rules, appearance and backup.
@@ -75,10 +75,11 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 
 | File | Purpose |
 |---|---|
-| `index.html` | All screens (tabs: Timesheet, Library, Leave, Forms, My details), dialogs, early theme script |
+| `index.html` | All screens (tabs: Timesheet, Records, Leave, Forms, My details), dialogs, early theme script |
 | `styles.css` | Mobile-first styling, colour themes, dark mode (`html.dark` class) |
 | `app.js` | State, roster, day logic, validation, Excel fill, PDF render, timesheet email, library, leave periods, appearance, PWA |
 | `roster-entry.js` | Non-rostered staff: entering shifts (station + shift) every 1, 2, 4 or 8 weeks |
+| `swaps.js` | Shift swaps: the swap record, putting halves on timesheets, the swap dialog, Records views and badge |
 | `leave.js` | Leave tab: requests and emails, timesheet pre-fill, calendar file, annual leave tracker, NASPO36 blocks and reminders |
 | `forms.js` | Forms tab: reads and fills fillable PDFs, built-in and uploaded forms, form emails, form ↔ timesheet links |
 | `form-profiles.js`, `forms/` | Setups for each HSE form (`FORM_PROFILES`), and the bundled blank PDFs |
@@ -91,7 +92,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 | `fonts/` | Handwriting fonts for typed signatures (open licences) |
 
 **Storage:**
-- **localStorage**, key `timesheetHub_v1`: `{ profile, currentId, sheets[], forms[], leavePeriods[], leaveRequests[] }`.
+- **localStorage**, key `timesheetHub_v1`: `{ profile, currentId, sheets[], forms[], leavePeriods[], leaveRequests[], swaps[] }` (older saved data simply has no `swaps` yet and starts with none).
   - Each sheet has `days[7]`, `history`, `sends`, `version`, `staff` snapshot and `rosterLine`.
   - `profile` also holds the roster (`rosterId`, `rosterAnchor`, `rosterAnchorLine`, or `rosterId: "entered"` with `rosterWeeks` and `rosterDays`) and `profile.leave` (workforce planning email, entitlement hours, leave year start).
   - `leavePeriods`: `{ id, formId, type, from, to, source, kind: "form" | "request", days? }` — leave put on timesheets by date.
@@ -141,7 +142,7 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 - **Extended duty:** pick how long. Overtime is filled in from the rostered finish to the new finish; the incident number is required. M: **"Ext Duty 1234567"**.
 - **Comp rest / late start:** pick how long, then *Compensatory Rest* or *Late Start* (optional note).
 - **Other times** and **Not worked**.
-- **Leave goes under Actual, never under Rostered.** The Roster row keeps the shift times; the Actual row shows the leave. (Exception: a non-rostered fixed leave day with no shift known goes in both rows.) Leave types: Annual, Parental, Self-Certified Sick, Certified Sick, Force Majeure, Study, Examination, Interview, Marriage, Maternity, Additional Maternity; Shift Swap (note in M).
+- **Leave goes under Actual, never under Rostered.** The Roster row keeps the shift times; the Actual row shows the leave. (Exception: a non-rostered fixed leave day with no shift known goes in both rows.) Leave types: Annual, Parental, Parent's, Self-Certified Sick, Certified Sick, Force Majeure, Study, Examination, Interview, Marriage, Maternity, Additional Maternity; Shift Swap (note in M).
 - **Leave + part shift / meeting:** leave type plus the time worked; leave hours = shift − worked; M reads "Annual Leave 11h – Meeting 10:00–11:00".
 - **Standard-day leave:** some leave pays only a standard day (default **7h 48m**); the rest of a 12h shift is covered by Annual Leave, TOIL or Worked. Configurable in My details → Leave rules. **To confirm with HR (parked).**
 - **Rest day worked:** **Overtime** (reason / incident required) or **TOIL** (M reads "Bank TOIL"); OT From/To always match the actual times.
@@ -149,27 +150,35 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 - **15-minute pickers**; **"✓ Done – next day"** folds a day and opens the next; unconfirmed days become Rest Day at publish after one prompt.
 
 ### Leave (Leave tab, `leave.js`)
-- **Request:** type (Annual, Parental, Force Majeure, Study, Examination, Interview, Marriage), dates, note; hours from the rostered shifts (editable). Non-rostered with no shifts yet: each day = fixed 12h leave day (untick days; no station); these stay leave when shifts are entered (shown as *booked*).
+- **Request:** type (Annual, Parental, Parent's, Force Majeure, Study, Examination, Interview, Marriage), dates, note; hours from the rostered shifts (editable). Non-rostered with no shifts yet: each day = fixed 12h leave day (untick days; no station); these stay leave when shifts are entered (shown as *booked*).
 - **On send:** pre-written email (To workforce planning, CC me), request saved as *Requested*, and a leave period put on the timesheets. Published weeks aren't changed (listed to revise). Approved / Declined / Cancel (cancellation email) / Add to calendar (.ics).
 - **Tracker (NASPO36):** leave year 1 Apr – 31 Mar; 179.4h + 78h bank holidays + carried over (carry-over > 39h flagged); taken / booked / left / waiting; annual leave on published timesheets that wasn't booked here also counts.
 - **Structured blocks (NASPO36 §9):** Summer 2 weeks, Autumn 1, Spring 1; block week = any 7 consecutive days with every rostered shift on annual leave (`weeksOff`); statuses Apply now / Done / Not yet / Overdue / Short / No record; reminder dot and card while a window is open. The request shows whether it makes a full block week. Notice warnings: under 48 hours; two weeks normal for single days (NASPO36 §10.2).
 
 ### Forms (HSE HR forms)
 - **Built in** (`forms/`, `FORM_PROFILES`): HR 108 a Adoptive, c Carer's, d Bereavement, e Examination, f Force Majeure, g Health & Safety, h Jury Service, i Maternity, j Parental, k Paternity, m Serious Physical Assault, n Marriage, p Study, q Trade Union, r Carry-over of Annual Leave, s Interview, t Parent's, u Unpaid Leave for Medical Care. Each: a label for every box, pre-fill from My details, manager/HR boxes kept blank, employee signature position, **HSE ↗** link to check for a newer version (an uploaded copy is recognised and used instead).
-- **Profile features:** `hide`, `combos` (one value over one-character squares, e.g. HR 108(c)), `groups` (optional sections written only when ticked, e.g. Maternity postponement, Confirmation Agreement), `options` (readable radio choices), `long` (multi-line box), `leaveType` / `leaveFill` (timesheet → form), `leaveRanges` (form → timesheets).
+- **Profile features:** `hide`, `combos` (one value over one-character squares, e.g. HR 108(c)), `groups` (optional sections written only when ticked, e.g. Maternity postponement, Confirmation Agreement), `options` (readable radio choices), `long` (multi-line box), `leaveType` / `leaveFill` (timesheet → form), `leaveWeek` (week-block leave: the form gets the whole 7 days), `leaveRanges` (form → timesheets).
 - **Links to the timesheet:** see Highlights §2. Leave across two timesheet weeks gives one form per week for now.
 - **Uploaded forms:** any fillable PDF can be added; boxes listed in page order and pre-filled by guessing.
 - **Not built in:** HR 108(b), 108(o), HR 110 (not needed for now); HR 108(l) (no fillable boxes); HR 117 (Word document).
 
+### Shift swaps (`swaps.js`)
+- **Personal only:** no link to anyone else's data; the colleague's name is a label.
+- **Record:** `state.swaps` = `{ id, direction: "off" | "on", colleague, note, first: { date, station, from, to }, second: same | null }`. `first` is the half it was logged from (the swap's direction); `second` is the other half (the opposite direction), blank until known.
+- **Owed:** open swap with direction *off* = **I owe**; with direction *on* = **Owed to me**; both halves recorded = **complete**.
+- **Entry points:** What happened → *Swapped off* (rostered shift); *⇄ Swapped on* on a rest day; *⇄ Record a shift swap* under any day; *＋ Record a swap* in Records → Swaps. A swap off fills in the rostered shift for that date; a swap on picks station + that station's shift (or other times).
+- **On timesheets** (`syncSwapsForSheet`, run whenever a week is shown and after every swap change): a swapped-off day keeps the rostered shift in the Roster row and records *Shift Swap* under Actual; a swapped-on day gets the colleague's shift (label "Swap"). Each such day has `d.swap = { id, half, sig }`, and the notes column (M) reads "Shift Swap: Swapped off – Pat Murphy (on 18/11)". A half that's removed or moved puts the day back from the roster (`fillDayFromRoster`). Published timesheets aren't changed; the app names them to revise.
+- The old free-text *Shift Swap* leave choice is no longer offered (old days that used it still show as before).
+
 ### Publishing, PDF and email
 - **Publish = locked PDF** drawn from the filled template, with a footer (publish time, AMENDED n, roster line). Print and annotate allowed; editing and copying blocked (a deterrent).
-- **Excel copy** under Library → More → *Export as Excel*.
+- **Excel copy** under Records → Timesheets → More → *Export as Excel*.
 - **Recipients:** ORM, DCM and Supervisor contacts (name + email + default tick), plus **Me** in CC.
 - **Emails:** see Highlights §5. A website can't fill To/CC in the share sheet, so addresses are copied to paste; "Open email" (mailto) fills them but the PDF is attached by hand.
 - **Amendments:** *Revise* makes AMENDED 1, 2, 3… (subject, body, file name, labels); the previous version is marked *superseded*.
 
 ### Look and feel
-- **Tabs:** Timesheet / Library / Leave / Forms / My details (fit on one line down to 360px).
+- **Tabs:** Timesheet / Records / Leave / Forms / My details (fit on one line down to 360px). The Records tab keeps its internal id `library`, so saved data and links carry over.
 - **Week strip**, **day cards** with colour chips (Day amber, Night indigo, Road teal, Rest grey, Leave purple, OT orange, Subsistence blue, problems red), folded shift details, bottom bar "x/7 days done · Review & publish".
 - **Themes:** Teal, Green, Navy, Plum, Slate, each in Light, Dark or Match phone.
 
@@ -190,17 +199,17 @@ It installs to the home screen (PWA) and works offline. All data stays **on the 
 
 ## 6. Videos
 
-Phone-size screen recordings with captions, using a made-up person ("Alex Sample"). Both use **week blocks** of leave: a week of Parental Leave, and an annual leave week.
+Phone-size screen recordings with captions, using a made-up person ("Alex Sample"). Both use **week blocks** of leave: a week of Parent's Leave, and an annual leave week.
 
 ### Highlight reel (30 seconds)
 - **File:** [`media/timesheet-hub-highlights.mp4`](media/timesheet-hub-highlights.mp4) — https://ami793-eng.github.io/Timesheets/media/timesheet-hub-highlights.mp4 (31 s, about 0.6 MB).
-- **Shows:** the week pre-filled from the roster → a **week of Parental Leave** (Quick fill) → HR 108(j) opening with **09/11 – 13/11, 4 days** filled in → its **pre-written email** → the **annual leave tracker** → booking an **annual leave week** and its **pre-written email** → publishing the timesheet and its **pre-written email**.
+- **Shows:** the week pre-filled from the roster → a **week of Parent's Leave** (Quick fill) → HR 108(t) opening with **Week one 09/11 – 15/11** filled in → its **pre-written email** → the **annual leave tracker** → booking an **annual leave week** and its **pre-written email** → publishing the timesheet and its **pre-written email**.
 
 ### Full explainer (2½ minutes)
 - **File:** [`media/timesheet-hub-explainer.mp4`](media/timesheet-hub-explainer.mp4) — https://ami793-eng.github.io/Timesheets/media/timesheet-hub-explainer.mp4 (2 min 27 s, about 1.6 MB).
 - **What it shows, in order:**
   1. Setting the roster once, and a new timesheet arriving **pre-filled from the roster**.
-  2. A **week of Parental Leave** with Quick fill; the leave offering **"Fill in the form"**; HR 108(j) opening with the **dates and days already filled in**; its **pre-written email**; the timesheet showing the form is done.
+  2. A **week of Parent's Leave** with Quick fill; the leave offering **"Fill in the form"**; HR 108(t) opening with **Week one (09/11 – 15/11) already filled in**; its **pre-written email**; the timesheet showing the form is done.
   3. Saving a **Maternity Leave form** putting the leave **onto the timesheets**.
   4. The **annual leave tracker**: entitlement, hours left, the Summer / Autumn / Spring blocks and the "Book your … leave" reminder.
   5. **Booking an annual leave week** (Fri–Thu): shifts and hours worked out, the **pre-written email** to workforce planning, and the leave appearing on that week's timesheet.

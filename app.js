@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.05-10";
+const APP_VERSION = "2026.11.09-1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -67,6 +67,7 @@ const STATION_SHIFTS = {
 const LEAVE_TYPES = [
   "Annual Leave",
   "Parental Leave",
+  "Parent's Leave",
   "Self-Certified Sick Leave",
   "Certified Sick Leave",
   "Force Majeure",
@@ -140,7 +141,8 @@ let state = {
   currentId: null,
   sheets: [],
   leavePeriods: [],          // [{ id, formId, type, from, to, source, kind }] — leave from a filled HSE form or a leave request
-  leaveRequests: []          // leave requested in the Leave tab (leave.js)
+  leaveRequests: [],         // leave requested in the Leave tab (leave.js)
+  swaps: []                  // shift swaps, one record per swap holding both halves (swaps.js)
 };
 
 const ui = {
@@ -175,6 +177,7 @@ function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     flashSaved();
+    if (typeof updateRecordsBadge === "function") updateRecordsBadge();
   } catch (err) {
     console.error(err);
     toast("Couldn't save on this device (storage full or blocked). Export a backup.", true);
@@ -460,9 +463,9 @@ function excelCells(d) {
       : `Late start ${c.aFrom}${d.lateNote.trim() ? ` – ${d.lateNote.trim()}` : ""}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
-  const isSwap = d.rosterLeave === "Shift Swap" || d.actualLeave === "Shift Swap";
+  const isSwap = d.rosterLeave === "Shift Swap" || d.actualLeave === "Shift Swap" || !!d.swap;
   if (isSwap && d.swapNote.trim()) {
-    const note = `Shift Swap: ${d.swapNote.trim()}`;
+    const note = d.swap ? `Shift Swap: ${d.swapNote.trim()}` : `Shift Swap: ${d.swapNote.trim()}`;
     c.otReason = c.otReason ? `${c.otReason}; ${note}` : note;
   }
   return c;
@@ -591,7 +594,7 @@ function showTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
   document.body.classList.toggle("has-bar", name === "timesheet" && !!currentSheet());
   document.querySelectorAll(".panel").forEach(p => { p.hidden = p.id !== `tab-${name}`; });
-  if (name === "library") renderLibrary();
+  if (name === "library") (typeof renderRecords === "function" ? renderRecords : renderLibrary)();
   if (name === "forms" && typeof renderForms === "function") renderForms();
   if (name === "leave" && typeof renderLeave === "function") renderLeave();
   if (name === "timesheet") renderTimesheet();
@@ -909,6 +912,8 @@ function renderTimesheet() {
   $("editView").hidden = !sheet;
   document.body.classList.toggle("has-bar", !!sheet && document.querySelector('.tab[aria-selected="true"]')?.dataset.tab === "timesheet");
   if (!sheet) return renderStart();
+  // Swap halves dated in this week are filled in (and undone if their swap changed).
+  if (typeof syncSwapsForSheet === "function" && syncSwapsForSheet(sheet)) saveState();
 
   const p = state.profile;
   $("sheetTitle").textContent = `Week ending ${displayDate(sheet.weekEnding)}`;
@@ -991,26 +996,31 @@ function describeRosterWeek(rw) {
 }
 
 // Pre-fill a new timesheet from the roster: shifts "worked as rostered", rest days boxed off.
+// One day from the roster week (also used to put a day back when a swap comes off it).
+function fillDayFromRoster(sheet, i, rw) {
+  const d = sheet.days[i];
+  const code = rw.codes[i];
+  const sh = rw.shifts[i];
+  d.station = rw.stations?.[i] || (code === "X" ? (state.profile.roadBase || "") : (rw.roster.station || d.station));
+  if (sh.leave) {                                                   // leave already booked for that day (no shift known)
+    d.roster = "leave"; d.rosterLeave = sh.leave; d.actual = "same"; d.done = true; d.leaveSource = leavePeriodOn(d.date)?.id;
+    return;
+  }
+  d.rosterLabel = sh.label;
+  if (code === "R") {
+    d.roster = "rest"; d.actual = "none"; d.done = false;   // confirmed with one tap as the week goes on
+    d.rosterFrom = ""; d.rosterTo = "";
+  } else {
+    d.roster = "times"; d.rosterFrom = sh.start; d.rosterTo = sh.finish; d.actual = "same";
+  }
+}
+
 function applyRoster(sheet) {
   const rw = rosterWeek(sheet.weekEnding);
   if (!rw) return false;
   sheet.rosterLine = rw.line || null;
   sheet.rosterName = rw.roster.name;
-  rw.codes.forEach((code, i) => {
-    const d = sheet.days[i];
-    const sh = rw.shifts[i];
-    d.station = rw.stations?.[i] || (code === "X" ? (state.profile.roadBase || "") : (rw.roster.station || d.station));
-    if (sh.leave) {                                                   // leave already booked for that day (no shift known)
-      d.roster = "leave"; d.rosterLeave = sh.leave; d.actual = "same"; d.done = true; d.leaveSource = leavePeriodOn(d.date)?.id;
-      return;
-    }
-    d.rosterLabel = sh.label;
-    if (code === "R") {
-      d.roster = "rest"; d.actual = "none"; d.done = false;   // confirmed with one tap as the week goes on
-    } else {
-      d.roster = "times"; d.rosterFrom = sh.start; d.rosterTo = sh.finish; d.actual = "same";
-    }
-  });
+  rw.codes.forEach((code, i) => fillDayFromRoster(sheet, i, rw));
   sheet.history.push({ action: `Filled from ${rw.roster.name}${rw.line ? `, line ${rw.line}` : ""}`, at: new Date().toISOString() });
   return true;
 }
@@ -1072,7 +1082,7 @@ function renderQuickFill(sheet) {
   $("qShift").innerHTML = opt("keep", "Keep rostered shift", prev === "keep") + rosterOptions(qs.value, prev).replace(opt("", "— Select —", prev === ""), "");
   if (!$("qActual").options.length) {
     $("qActual").innerHTML = opt("same", "Worked as rostered", true) + opt("later", "I'll enter actual times per day", false) +
-      `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, false)).join("")}</optgroup>`;
+      `<optgroup label="Leave">${LEAVE_TYPES.filter(l => l !== "Shift Swap").map(l => opt(`leave:${l}`, l, false)).join("")}</optgroup>`;
   }
   if (prev && [...$("qShift").options].some(o => o.value === prev)) $("qShift").value = prev;
   updateQuickVisibility();
@@ -1197,6 +1207,11 @@ function dayLeaveType(d) {
 function leaveFormProfile(type) {
   return (type && typeof FORM_PROFILES !== "undefined" && FORM_PROFILES.find(p => p.leaveType === type && p.file)) || null;
 }
+// A week block (e.g. Parent's Leave): the form takes the whole 7 days from the first leave day.
+function weekBlock(run) {
+  const end = parseIso(run.from); end.setDate(end.getDate() + 6);
+  return { ...run, to: isoLocal(end) };
+}
 // The stretch of this week taken as the same leave around day i. Rest days in between don't break it.
 function leaveRun(sheet, i) {
   const type = dayLeaveType(sheet.days[i]);
@@ -1236,7 +1251,7 @@ function leaveFormRow(d, i) {
   }
   const p = sheet && leaveFormProfile(dayLeaveType(d));
   if (!p) return "";
-  const run = leaveRun(sheet, i);
+  const run = p.leaveWeek ? weekBlock(leaveRun(sheet, i)) : leaveRun(sheet, i);
   const rec = linkedLeaveForm(sheet, run);
   const sent = rec?.sends?.length ? new Date(rec.sends.at(-1)) : null;
   const span = run.from === run.to ? shortDate(run.from) : `${shortDate(run.from)} – ${shortDate(run.to)}`;
@@ -1244,7 +1259,7 @@ function leaveFormRow(d, i) {
     <div class="leave-form">
       <div class="leave-form__text">
         <strong>${esc(p.code)} ${esc(p.title)} form</strong>
-        <span class="muted">${span} · ${run.days} day${run.days === 1 ? "" : "s"}</span>
+        <span class="muted">${span} · ${p.leaveWeek ? "week block" : `${run.days} day${run.days === 1 ? "" : "s"}`}</span>
         ${rec ? `<span class="chip2 chip-leave">${sent ? `Sent ${esc(sent.toLocaleDateString("en-IE", { day: "2-digit", month: "2-digit" }))}` : "Filled in"}</span>` : ""}
       </div>
       <button type="button" class="btn btn--small" data-leave-form="${i}">${rec ? "Open form" : "Fill in the form"}</button>
@@ -1307,6 +1322,7 @@ function hh(t) { return isTime(t) ? (t.endsWith(":00") ? t.slice(0, 2) : t) : t;
 function dayChips(d) {
   const chips = [];
   const a = resolvedActual(d);
+  if (d.swap) chips.push([`⇄ ${d.swapNote.replace(/ \(.*\)$/, "")}`, "chip-swap"]);
   if (!d.roster) chips.push(["Not entered", "chip-empty"]);
   else if (d.roster === "rest") chips.push(["Rest Day", "chip-rest"]);
   else if (d.roster === "leave") chips.push([d.rosterLeave, "chip-leave"]);
@@ -1366,6 +1382,7 @@ function dayCard(d, i) {
     <div class="rest-actions">
       <button type="button" class="btn btn--small btn--primary" data-rest-ok="${i}">✓ Rest day</button>
       <button type="button" class="btn btn--small" data-rest-worked="${i}">Worked (OT / TOIL)</button>
+      <button type="button" class="btn btn--small" data-sw-day="${i}" data-sw-dir="on">⇄ Swapped on</button>
     </div>`}
   </article>`;
   }
@@ -1435,13 +1452,27 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
         opt("rest-toil", "Worked – TOIL", isRestWorked(d) && restWorkType(d) === "toil")
       : opt("times", "Other times (e.g. started late)", d.actual === "times"),
     opt("none", d.roster === "rest" ? "Not worked (Rest Day)" : "Not worked", d.actual === "none"),
-    `<optgroup label="Leave">${LEAVE_TYPES.map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l)).join("")}${isTimes ? opt("partleave", "Leave + part shift / meeting", d.actual === "partleave") : ""}</optgroup>`
+    `<optgroup label="Leave">${LEAVE_TYPES.filter(l => l !== "Shift Swap" || (d.actualLeave === l && !d.swap)).map(l => opt(`leave:${l}`, l, d.actual === "leave" && d.actualLeave === l && !d.swap)).join("")}${isTimes ? opt("partleave", "Leave + part shift / meeting", d.actual === "partleave") : ""}</optgroup>`,
+    isTimes && !d.swap ? `<optgroup label="Shift swap">${opt("swap-off", "Swapped off (I gave my shift away)…", false)}</optgroup>` : ""
   ].join("");
+  // A day that's half of a swap: the swap decides it, edited in the swap itself.
+  if (d.swap) {
+    const s = (state.swaps || []).find(x => x.id === d.swap.id);
+    const other = s && (d.swap.half === "first" ? s.second : s.first);
+    return `
+    <div class="swap-card">
+      <div><strong>⇄ ${esc(d.swapNote.replace(/ \(.*\)$/, ""))}</strong>
+        <span class="muted">${other?.date ? `Other half: ${esc(DAYS[(parseIso(other.date).getDay() + 6) % 7].short)} ${esc(shortDate(other.date))} ${esc(other.from)}–${esc(other.to)}` : "Other half not set yet"}</span></div>
+      <button type="button" class="btn btn--small" data-sw-day="${i}">Edit swap</button>
+    </div>
+    ${dayEditorTail(d, i)}`;
+  }
   return `
     ${d.roster ? `
     <div class="field">
       <label>What happened</label>
       <select data-f="actual" data-i="${i}">${actualOpts}</select>
+      <button type="button" class="link-btn swap-link" data-sw-day="${i}" data-sw-dir="${isTimes ? "off" : "on"}">⇄ Record a shift swap</button>
     </div>` : ""}
 
     ${isTimes && ["early", "extended", "late"].includes(d.actual) ? `
@@ -1583,6 +1614,14 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
       </div>`}` : ""}
     </fieldset>`}
 
+    ` : ""}
+    ${dayEditorTail(d, i)}`;
+}
+
+// Subsistence and the day's buttons (shared by every kind of day, swap days included).
+function dayEditorTail(d, i) {
+  return `
+    ${d.roster ? `
     <fieldset class="sub" aria-label="Subsistence?">
       <div class="toggle-row"><span class="toggle-row__label">Subsistence?</span>
       <div class="segmented segmented--compact">
@@ -1598,6 +1637,7 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
         <div class="field"><label>Callsign <span class="opt">optional</span></label><input type="text" data-f="subsVehicle" data-i="${i}" value="${esc(d.subsVehicle)}" list="vehicleList" autocapitalize="characters" placeholder="Vehicle callsign"></div>
       </div>` : ""}
     </fieldset>` : ""}
+
 
     <div class="day__foot">
       <button type="button" class="btn btn--small btn--ghost" data-copy-next="${i}" ${i === 6 ? "disabled" : ""}>Copy to next day</button>
@@ -1616,6 +1656,13 @@ function onDayInput(e) {
   const sheet = currentSheet();
   if (!sheet) return;
   const d = sheet.days[i];
+
+  // "Swapped off" opens the swap form; the day only changes once the swap is saved.
+  if (f === "actual" && el.value === "swap-off") {
+    rerenderDay(i);
+    if (typeof openSwapDialog === "function") openSwapDialog(null, { date: d.date, dir: "off" });
+    return;
+  }
 
   // Plain text fields: save without re-rendering (keeps the keyboard open).
   const textFields = ["otReason", "subsLocation", "subsVehicle", "swapNote", "earlyNote", "lateNote", "partNote", "toilNote"];
@@ -1703,6 +1750,9 @@ function onDayInput(e) {
     default:
       d[f] = el.value;
   }
+  // Choosing what happened (e.g. Extended duty) or how long always works the overtime out again,
+  // even if the overtime toggle or times were touched by hand earlier on this day.
+  if (["actual", "actualMins"].includes(f)) d.otAuto = true;
   if (["rosterValue", "rosterFrom", "rosterTo", "rosterHours", "actual", "actualMins", "partFrom", "partTo", "actualFrom", "actualTo", "actualHours", "actualLeave"].includes(f)) {
     autoOvertime(d);
   }
@@ -1742,7 +1792,7 @@ function copyToNext(i) {
   const src = sheet.days[i];
   const dst = sheet.days[i + 1];
   const keep = { date: dst.date };
-  Object.assign(dst, structuredClone(src), keep, { done: false, otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", partNote: "", toilNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
+  Object.assign(dst, structuredClone(src), keep, { swap: undefined, swapNote: src.swap ? "" : src.swapNote, done: false, otReason: "", earlyReason: "", earlyNote: "", lateReason: "", lateNote: "", partNote: "", toilNote: "", subs: false, subsVehicle: "", subsFrom: "", subsTo: "", subsRate: "", subsLocation: "" });
   if (!dst.otAuto) { dst.ot = false; dst.otFrom = ""; dst.otTo = ""; dst.otAuto = true; }
   autoOvertime(dst);
   touch(sheet, `Copied ${DAYS[i].short} → ${DAYS[i + 1].short}`);
@@ -2832,7 +2882,7 @@ function bind() {
     if (e.key !== STORAGE_KEY) return;
     loadState();
     const visible = document.querySelector('.tab[aria-selected="true"]')?.dataset.tab || "timesheet";
-    if (visible === "library") renderLibrary();
+    if (visible === "library") (typeof renderRecords === "function" ? renderRecords : renderLibrary)();
     else if (visible === "timesheet") renderTimesheet();
   });
 

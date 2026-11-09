@@ -371,9 +371,10 @@ async function addFormFile(file) {
 async function openLeaveForm(i) {
   const sheet = currentSheet();
   if (!sheet) return;
-  const run = leaveRun(sheet, i);
+  let run = leaveRun(sheet, i);
   const p = leaveFormProfile(run.type);
   if (!p) return;
+  if (p.leaveWeek) run = weekBlock(run);                                // e.g. Parent's Leave: the whole week
   const done = linkedLeaveForm(sheet, run);
   showTab("forms");
   if (done) return openFormEditor(done.templateId, done.id);
@@ -618,7 +619,7 @@ function initForms() {
     if (!t) return;
     const d = t.dataset;
     if (d.formFill) openFormEditor(d.formFill);
-    else if (d.formOpen) { const r = (state.forms || []).find(x => x.id === d.formOpen); if (r) openFormEditor(r.templateId, r.id); }
+    else if (d.formOpen) { const r = (state.forms || []).find(x => x.id === d.formOpen); if (r) { showTab("forms"); openFormEditor(r.templateId, r.id); } }
     else if (d.formDel) { if (confirm("Remove this blank form from the app? (Filled copies stay.)")) { await idbDel(d.formDel); renderForms(); } }
     else if (d.formForget) {
       const hasLeave = (state.leavePeriods || []).some(p => p.formId === d.formForget);
