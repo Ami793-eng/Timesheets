@@ -1,6 +1,12 @@
-# Timesheet Hub
+# FiNASh Time
+
+*Time recorded right* (formerly Timesheet Hub)
+
+Logo: the breakout clock tick (plum #2D1B4E, orange #FF9F1C, deep orange #C2410C; Space Grotesk Bold), from the *FiNASh Time Logo* design canvas. It's an inline SVG in the header — on white in light mode, on plum in dark mode — and the home-screen / app icons in `icons/`.
 
 A simple weekly timesheet web app for staff. It runs entirely in the browser and is hosted free on GitHub Pages. There's no server and no login.
+
+📄 **File names:** everything the app makes is named `FiNASh-Time_<date>_<what>`, for example `FiNASh-Time_2026-11-15_Timesheet.pdf` (the week-ending date; `_AMENDED1` or `_DRAFT` added where needed), `FiNASh-Time_2026-11-09_Study-Leave.pdf`, `FiNASh-Time_2027-01-08_Annual-Leave.ics` and `FiNASh-Time_2026-11-09_Backup.json`.
 
 ▶️ **Videos:** [30-second highlight reel](media/timesheet-hub-highlights.mp4) · [2½-minute explainer](media/timesheet-hub-explainer.mp4) — roster-filled timesheets, forms linked to your leave dates, the annual leave tracker and booker, and the pre-written emails. See `PROJECT_SUMMARY.md` for a full overview.
 
@@ -67,7 +73,7 @@ Staff fill in their week (they can save it and come back during the week), publi
 - **Rest days:** days left blank are recorded as **Rest Day** when you publish. You're asked to confirm this first.
 - **Drafts:** these autosave as you type.
 - **Publish = locked PDF:** publishing creates a **PDF only**. It is drawn straight from the filled-in Excel template, using the template's own colours, column widths, merged cells, borders, fonts, logo and notes. The PDF is **locked**: it opens without a password and can be **printed and signed**, but normal PDF readers won't let the timesheet's content be edited or copied. For example, a manager can add a signature in the Line Manager box with Adobe Fill & Sign, or print it and sign by hand. This is a strong deterrent rather than unbreakable protection.
-  - **Preview PDF** on a draft lets you check it first.
+  - **Preview PDF** on a draft lets you check it first. On iPhone and computers it opens in a new tab; Android phones (no built-in PDF viewer in Chrome) download the draft PDF to open from your downloads.
   - **Revise** in Records → Timesheets makes a corrected version (AMENDED 1, 2, …).
   - **Excel:** the Records → Timesheets card's **More → Export as Excel** gives an editable copy for your own records. Only the locked PDF is emailed.
 - **Attachments:** on phones, **Email with PDF attached** opens your phone's share sheet with the PDF already attached. Pick your email app, then paste the copied addresses into To. **Open email** fills in the addresses and subject, but the PDF has to be attached by hand from Downloads, because browsers can't attach files to an email draft themselves.

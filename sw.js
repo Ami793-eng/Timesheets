@@ -1,4 +1,4 @@
-/* Timesheet Hub service worker
+/* FiNASh Time service worker
  * Lets the home-screen app open without signal. Network first, so updates
  * always arrive when online; falls back to the last saved copy when offline.
  */
@@ -6,7 +6,7 @@ const CACHE = "timesheet-hub";
 const CORE = [
   "./", "index.html", "styles.css", "app.js", "lib/exceljs.min.js", "lib/jspdf.umd.min.js", "lib/pdf-lib.min.js", "form-profiles.js", "forms.js", "roster-entry.js", "swaps.js", "leave.js", "template.xlsx",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",
-  "fonts/dancing-script.woff2", "fonts/great-vibes.woff2", "fonts/caveat.woff2", "fonts/homemade-apple.woff2"
+  "fonts/dancing-script.woff2", "fonts/great-vibes.woff2", "fonts/caveat.woff2", "fonts/homemade-apple.woff2", "fonts/space-grotesk-bold.woff2", "icons/favicon-32.png", "icons/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", event => {

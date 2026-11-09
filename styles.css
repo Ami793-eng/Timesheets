@@ -4,6 +4,7 @@
 @font-face { font-family: "Dancing Script"; src: url("fonts/dancing-script.woff2") format("woff2"); font-display: swap; }
 @font-face { font-family: "Great Vibes"; src: url("fonts/great-vibes.woff2") format("woff2"); font-display: swap; }
 @font-face { font-family: "Caveat"; src: url("fonts/caveat.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Space Grotesk"; src: url("fonts/space-grotesk-bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 @font-face { font-family: "Homemade Apple"; src: url("fonts/homemade-apple.woff2") format("woff2"); font-display: swap; }
 
 :root {
@@ -327,6 +328,8 @@ select.needs { border-color: var(--danger); background-color: var(--warn-soft); 
 /* Add to Home Screen */
 .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: .4rem; }
 .brand-row .brand { margin: 0; }
+.brand-wrap { min-width: 0; }
+.brand-tag { margin: 1px 0 0; font-size: .78rem; font-weight: 500; opacity: .85; letter-spacing: .01em; }
 .install-btn {
   appearance: none; border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.14); color: inherit;
   font: inherit; font-size: .82rem; font-weight: 700; padding: .35rem .7rem; border-radius: 999px; cursor: pointer; white-space: nowrap;
@@ -663,3 +666,31 @@ body.has-bar .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .swap-card strong { color: var(--subs); }
 .swap-link { display: inline-block; margin-top: 6px; font-size: .88rem; }
 .chip-swap { background: var(--subs-soft); color: var(--subs); }
+
+/* FiNASh Time brand header: the logo on white (light) or on plum (dark). The colour themes still
+   change buttons and highlights; the header always carries the logo colours. */
+:root, :root[data-theme] {
+  --brand-plum: #2D1B4E; --brand-orange: #FF9F1C; --brand-deep: #C2410C;
+  --hdr1: #ffffff; --hdr2: #ffffff;
+  --logo-ring: #2D1B4E; --logo-tick: #C2410C; --logo-text: #2D1B4E; --logo-nas: #C2410C; --logo-tag: #4A4A4A; --logo-line: #C2410C;
+}
+:root.dark, :root.dark[data-theme] {
+  --hdr1: #2D1B4E; --hdr2: #2D1B4E;
+  --logo-ring: #ffffff; --logo-tick: #FF9F1C; --logo-text: #ffffff; --logo-nas: #FF9F1C; --logo-tag: #DCD3EC; --logo-line: #FF9F1C;
+}
+.app-header, .dark .app-header { background: var(--hdr1); color: var(--logo-text); border-bottom: 1px solid rgba(45, 27, 78, .12); }
+.dark .app-header { border-bottom-color: rgba(255, 255, 255, .08); }
+.brand-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-mark { flex: none; display: block; }
+.brand-text { min-width: 0; }
+.brand { font-family: "Space Grotesk", Inter, system-ui, sans-serif; font-weight: 700; font-size: 1.45rem; line-height: 1; letter-spacing: -.01em; color: var(--logo-text); }
+.brand-nas { color: var(--logo-nas); }
+.brand-tag { margin: 4px 0 0; font-size: .8rem; font-weight: 500; color: var(--logo-tag); opacity: 1; }
+.tab[aria-selected="true"] { border-bottom-color: var(--logo-line); }
+.install-btn { color: var(--logo-text); border-color: rgba(45, 27, 78, .25); background: rgba(45, 27, 78, .06); }
+.install-btn:hover { background: rgba(45, 27, 78, .12); }
+.dark .install-btn { border-color: rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .12); }
+.brand, .brand-tag { white-space: nowrap; }
+.install-btn { flex: none; }
+.install-short { display: none; }
+@media (max-width: 480px) { .install-long { display: none; } .install-short { display: inline; } }

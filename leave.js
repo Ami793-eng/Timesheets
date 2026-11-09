@@ -1,4 +1,4 @@
-/* Timesheet Hub — leave.js
+/* FiNASh Time — leave.js
  * Leave tab: request annual (and other) leave by email, put it on the timesheets,
  * add it to the phone's calendar, and keep count of annual leave hours.
  *
@@ -403,14 +403,14 @@ function calendarFile(r) {
   const end = parseIso(r.to); end.setDate(end.getDate() + 1);
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
   const text = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Timesheet Hub//Leave//EN", "BEGIN:VEVENT",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//FiNASh Time//Leave//EN", "BEGIN:VEVENT",
     `UID:${r.id}@timesheet-hub`, `DTSTAMP:${stamp}`,
     `DTSTART;VALUE=DATE:${ymd(r.from)}`, `DTEND;VALUE=DATE:${ymd(isoLocal(end))}`,
     `SUMMARY:${r.type}${r.status === "requested" ? " (requested)" : ""}`,
     `DESCRIPTION:${fmtHours(r.hours * 60)} · ${r.shifts.length} shift${r.shifts.length === 1 ? "" : "s"}`,
     "TRANSP:TRANSPARENT", "END:VEVENT", "END:VCALENDAR"
   ].join("\r\n");
-  return new File([text], `${r.type.replace(/\s+/g, "-")}-${r.from}.ics`, { type: "text/calendar" });
+  return new File([text], appFileName(r.from, r.type, "ics"), { type: "text/calendar" });
 }
 
 /* ---------- wiring ---------- */
