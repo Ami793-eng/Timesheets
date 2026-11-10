@@ -59,6 +59,7 @@ Staff fill in their week (they can save it and come back during the week), publi
   - Tap a done day to reopen and change it.
   - Quick fill starts folded away once a timesheet has entries.
 - **15-minute pickers:** every time and hours box scrolls in 15-minute steps.
+- **Overtime must match the actual times:** a day whose overtime runs outside the times actually worked (e.g. overtime to 20:30 but finished at 20:00, or overtime on a rest day that isn't recorded as worked) shows a red *Overtime ≠ actual* chip and a message, and can't be marked Done or published until one is fixed. Overtime on a rest day goes through **What happened → Worked – Overtime** (or TOIL), which puts the worked times in the Actual row and the overtime columns.
 - **Overtime:** the Yes/No is set automatically when you started at the rostered time but finished later. OT runs from the rostered finish to the actual finish. It can also be set by hand. An **incident number / reason is required** before you can publish.
 - **Subsistence:** can be claimed on any day, with From, To, Rate, Location and an optional **Callsign** (any vehicle callsign, for notes). Callsigns you have used are suggested as you type. The sheet shows the location as typed, plus " - <callsign>" if one is entered.
 - **Leave types:**
