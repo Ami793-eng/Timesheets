@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.09-5";
+const APP_VERSION = "2026.11.10-1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -426,7 +426,7 @@ function excelCells(d) {
   else if (a.kind === "leave") [c.aFrom, c.aTo] = splitLabel(a.label);
   const tu = topUpMins(d);
   if (tu && d.topUp === "worked" && isTime(d.topFrom) && isTime(d.topTo)) { c.aFrom = d.topFrom; c.aTo = d.topTo; }
-  else if (roster === "rest") [c.aFrom, c.aTo] = splitLabel("Rest Day");   // rest day that stayed a rest day
+  else if (roster === "rest" && a.kind !== "times") [c.aFrom, c.aTo] = splitLabel("Rest Day");   // rest day that stayed a rest day (a worked one keeps its times)
 
   if (d.ot) {
     c.otFrom = d.otFrom;
@@ -1356,6 +1356,7 @@ function dayChips(d) {
   const chips = [];
   const a = resolvedActual(d);
   if (d.swap) chips.push([`⇄ ${d.swapNote.replace(/ \(.*\)$/, "")}`, "chip-swap"]);
+  if (overtimeMismatch(d)) chips.push(["Overtime ≠ actual", "chip-warn"]);
   if (!d.roster) chips.push(["Not entered", "chip-empty"]);
   else if (d.roster === "rest") chips.push(["Rest Day", "chip-rest"]);
   else if (d.roster === "leave") chips.push([d.rosterLeave, "chip-leave"]);
@@ -1623,7 +1624,9 @@ function dayEditorRest(d, i, { isTimes, isSwap, shiftLen, a }) {
     </fieldset>` : ""}
 
     ${d.roster ? `
-    ${isRestWorked(d) && restWorkType(d) ? "" : `
+    ${isRestWorked(d) && restWorkType(d) ? "" : resolvedActual(d).kind !== "times" && !d.ot ? (d.roster === "rest" ? `
+    <p class="hint">Worked this rest day? Choose <strong>What happened → Worked – Overtime</strong> (or TOIL) — the times you worked go in as the overtime.</p>` : "") : `
+    ${overtimeMismatch(d) ? `<p class="hint warn-text">⚠ ${esc(overtimeMismatch(d))}</p>` : ""}
     <fieldset class="sub" aria-label="Overtime worked?">
       <div class="toggle-row"><span class="toggle-row__label">Overtime worked?</span>
       <div class="segmented segmented--compact">
@@ -1919,6 +1922,21 @@ function validate(sheet) {
 }
 
 // Problems with one day (used by Done and by Publish).
+// Overtime has to sit inside the times actually worked (Actual row). Returns what's wrong, or "".
+function overtimeMismatch(d) {
+  if (!d.ot || !isTime(d.otFrom) || !isTime(d.otTo)) return "";
+  const a = resolvedActual(d);
+  if (a.kind !== "times" || !isTime(a.from) || !isTime(a.to)) {
+    return `overtime ${d.otFrom}–${d.otTo} is filled in, but the day isn't recorded as worked${d.roster === "rest" ? " — for a rest day choose What happened → Worked – Overtime (or TOIL), or turn the overtime off" : " — turn the overtime off or record the times worked"}.`;
+  }
+  const len = minsAfter(a.from, a.to);
+  const start = ((toMin(d.otFrom) - toMin(a.from)) % 1440 + 1440) % 1440;
+  const end = minsAfter(a.from, d.otTo);
+  if (end > len) return `overtime ends at ${d.otTo} but you finished at ${a.to} — change the finish or the overtime so they match.`;
+  if (start >= end) return `overtime ${d.otFrom}–${d.otTo} isn't within your actual times ${a.from}–${a.to}.`;
+  return "";
+}
+
 function dayErrors(d, i) {
   const errors = [];
   const n = DAYS[i].name;
@@ -1957,6 +1975,8 @@ function dayErrors(d, i) {
     if (d.ot) {
       if (!isTime(d.otFrom) || !isTime(d.otTo)) errors.push(`${n}: overtime from/to times are needed.`);
       if (!d.otReason.trim() && !isBankToil(d)) errors.push(`${n}: an incident number / reason is required for overtime.`);
+      const m = overtimeMismatch(d);
+      if (m) errors.push(`${n}: ${m}`);
     }
     if (d.subs) {
       if (!isTime(d.subsFrom)) errors.push(`${n}: subsistence "From" time is missing.`);
