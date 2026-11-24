@@ -27,7 +27,7 @@ function shiftOptions(station, val) {
   const group = (label, items) => items.length ? `<optgroup label="${label}">${items.map(s => opt(`shift:${s.start}`, shiftLabel(s), val === `shift:${s.start}`)).join("")}</optgroup>` : "";
   return opt("", "Shift…", !val) + opt("R", "Rest", val === "R") +
     group("Day", list.filter(s => !isNight(s))) + group("Night", list.filter(isNight)) +
-    (!station || ROAD_STATIONS.includes(station) ? opt("X", "Road", val === "X") : "") +
+    (!station || ROAD_PLACES.includes(station) ? opt("X", station === "NEOC" ? "Road (worked in NEOC)" : "Road", val === "X") : "") +
     opt("O", "Other times", val === "O");
 }
 const draftValue = v => !v || !v.code ? "" : v.code === "D" || v.code === "N" ? `shift:${v.from}` : v.code;
@@ -158,7 +158,7 @@ function setDraft(d, { value, station } = {}) {
       value = alt ? `shift:${alt.start}` : "";
     }
   }
-  if (value === "X" && station && !ROAD_STATIONS.includes(station)) value = "";
+  if (value === "X" && station && !ROAD_PLACES.includes(station)) value = "";
   if (!value) { re.draft[d] = { code: "", station }; return; }
   if (value === "R") { re.draft[d] = { code: "R", station }; return; }
   if (value === "X") { re.draft[d] = { code: "X", station, from: "07:00", to: "19:00" }; return; }

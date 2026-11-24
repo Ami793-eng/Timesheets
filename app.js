@@ -12,7 +12,7 @@
 const STORAGE_KEY = "timesheetHub_v1";
 // Bump together with the ?v= numbers in index.html on every release, so phones
 // never mix a new page with an old cached app.js / styles.css.
-const APP_VERSION = "2026.11.10-1";
+const APP_VERSION = "2026.11.24-1";
 
 // Excel row layout, confirmed in the requirements.
 const DAYS = [
@@ -112,6 +112,8 @@ const ROSTER_SHIFTS = {
 };
 // Road shifts are worked from one of these bases.
 const ROAD_STATIONS = ["Sligo", "Manorhamilton", "Ballyshannon"];
+// A road shift can be changed to be worked in NEOC (role change).
+const ROAD_PLACES = [...ROAD_STATIONS, "NEOC"];
 // Each line is one week, Monday → Sunday.
 const ROSTERS = {
   "neoc-a": {
@@ -506,7 +508,7 @@ function daySummary(d) {
   const c = excelCells(d);
   if (!d.roster) return { text: "Not entered yet", cls: "is-empty" };
   if (d.roster === "rest" && resolvedActual(d).kind === "none") return { text: "Rest Day", cls: "is-rest" };
-  const tag = d.rosterLabel === "Road" ? `Road (${d.station || "station?"}) ` : d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : "";
+  const tag = d.rosterLabel === "Road" ? (d.station === "NEOC" ? "Road → NEOC " : `Road (${d.station || "station?"}) `) : d.rosterLabel && d.rosterLabel !== "Rest Day" ? `${d.rosterLabel} ` : "";
   let text = d.roster === "times" ? `${tag}${d.rosterFrom}–${d.rosterTo}` : d.roster === "leave" ? d.rosterLeave : "Rest Day";
   const a = resolvedActual(d);
   if (d.actual === "early" && d.actualMins) {
@@ -1364,7 +1366,7 @@ function dayChips(d) {
     const night = isTime(d.rosterFrom) && isTime(d.rosterTo) && toMin(d.rosterFrom) > toMin(d.rosterTo);
     const kind = d.rosterLabel === "Road" ? "road" : night ? "night" : "day";
     const name = d.rosterLabel && d.rosterLabel !== "Rest Day" ? d.rosterLabel : night ? "Night" : "Day";
-    const where = d.rosterLabel === "Road" ? ` · ${d.station || "station?"}` : "";
+    const where = d.rosterLabel === "Road" ? (d.station === "NEOC" ? " → NEOC" : ` · ${d.station || "station?"}`) : "";
     chips.push([`${name}${where} ${hh(d.rosterFrom)}–${hh(d.rosterTo)}`, `chip-${kind}`]);
   }
   const m = fmtDur(d.actualMins);
@@ -1437,7 +1439,7 @@ function dayEditor(d, i) {
 
   const shiftLen = shiftMins(d.rosterFrom, d.rosterTo);
   const a = resolvedActual(d);
-  const showShift = ui.shiftEdit.has(i) || d.roster !== "times" || rv === "other" || (isRoad && !ROAD_STATIONS.includes(d.station));
+  const showShift = ui.shiftEdit.has(i) || d.roster !== "times" || rv === "other" || (isRoad && !ROAD_PLACES.includes(d.station));
   if (!showShift) {
     return `
   <div class="day__body">
@@ -1453,7 +1455,7 @@ function dayEditor(d, i) {
       <div class="field">
         <label>Station${isRoad ? ` <span class="req">required</span>` : ""}</label>
         ${isRoad
-          ? `<select data-f="station" data-i="${i}" class="${ROAD_STATIONS.includes(d.station) ? "" : "needs"}">${opt("", "— Road shift from —", !ROAD_STATIONS.includes(d.station))}${ROAD_STATIONS.map(s => opt(s, s, s === d.station)).join("")}</select>`
+          ? `<select data-f="station" data-i="${i}" class="${ROAD_PLACES.includes(d.station) ? "" : "needs"}">${opt("", "— Road shift from —", !ROAD_PLACES.includes(d.station))}${ROAD_STATIONS.map(s => opt(s, s, s === d.station)).join("")}<optgroup label="Role change">${opt("NEOC", "NEOC (worked in NEOC)", d.station === "NEOC")}</optgroup></select>`
           : `<select data-f="station" data-i="${i}">${STATIONS.map(s => opt(s, s, s === st)).join("")}</select>`}
       </div>
       <div class="field">
@@ -1941,7 +1943,7 @@ function dayErrors(d, i) {
   const errors = [];
   const n = DAYS[i].name;
   {
-    if (d.roster === "times" && d.rosterLabel === "Road" && !ROAD_STATIONS.includes(d.station)) errors.push(`${n}: choose which station the road shift was from.`);
+    if (d.roster === "times" && d.rosterLabel === "Road" && !ROAD_PLACES.includes(d.station)) errors.push(`${n}: choose which station the road shift was from.`);
     if (d.roster === "times" && !(isTime(d.rosterFrom) && isTime(d.rosterTo))) errors.push(`${n}: rostered start and finish times are needed.`);
     if (d.roster === "leave" && !d.rosterLeave) errors.push(`${n}: choose the leave type.`);
     if (d.roster && d.actual === "times" && !(isTime(d.actualFrom) && isTime(d.actualTo))) errors.push(`${n}: actual start and finish times are needed.`);
